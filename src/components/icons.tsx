@@ -211,3 +211,29 @@ export function DiamondDot({ className = 'size-2' }: IconProps) {
     </svg>
   );
 }
+
+export function SunIcon({ className = 'size-4' }: IconProps) {
+  return (
+    <Stroke className={className}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4" />
+    </Stroke>
+  );
+}
+
+export function MoonIcon({ className = 'size-4' }: IconProps) {
+  return (
+    <Stroke className={className}>
+      <path d="M20 14.2A8 8 0 0 1 9.8 4 8.2 8.2 0 1 0 20 14.2Z" />
+    </Stroke>
+  );
+}
+
+export function FocusIcon({ className = 'size-4' }: IconProps) {
+  return (
+    <Stroke className={className}>
+      <path d="M9 3.5H4.5v4.5M15 3.5h4.5v4.5M9 20.5H4.5V16M15 20.5h4.5V16" />
+      <circle cx="12" cy="12" r="2.6" />
+    </Stroke>
+  );
+}

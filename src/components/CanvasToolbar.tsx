@@ -31,23 +31,23 @@ export default function CanvasToolbar({
   return (
     <div className="floating-bar pointer-events-auto flex h-10 items-center gap-0.5 rounded-[11px] px-1">
       <label className="relative flex items-center" aria-label="搜索节点">
-        <SearchIcon className="pointer-events-none absolute left-2.5 size-3.5 text-[#98a2b3]" />
+        <SearchIcon className="pointer-events-none absolute left-2.5 size-3.5 text-ink-faint" />
         <input
           type="search"
           placeholder="搜索节点"
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
-          className="h-8 w-[208px] rounded-[8px] bg-transparent pl-8 pr-2 text-[12px] text-ink placeholder:text-[#98a2b3] focus:bg-[#f7f8fa] focus:outline-none"
+          className="h-8 w-[208px] rounded-[8px] bg-transparent pl-8 pr-2 text-[12px] text-ink placeholder:text-ink-faint focus:bg-canvas focus:outline-none"
         />
       </label>
 
       {searchQuery.trim() !== '' && matchCount != null && (
-        <span className="tnum mr-1 shrink-0 text-[10.5px] text-[#98a2b3]">
+        <span className="tnum mr-1 shrink-0 text-[10.5px] text-ink-faint">
           {matchCount === 0 ? '无匹配' : `${matchCount} 个匹配`}
         </span>
       )}
 
-      <span className="mx-0.5 h-4 w-px bg-[#eaecf0]" aria-hidden />
+      <span className="mx-0.5 h-4 w-px bg-line" aria-hidden />
 
       {layers.map((layer) => {
         const active = layerVisibility[layer];
@@ -60,14 +60,14 @@ export default function CanvasToolbar({
             data-active={active}
             title={color.label}
             className={`flex h-7 items-center gap-1.5 rounded-[7px] px-2 text-[11px] transition-colors ${
-              active ? 'bg-[#f7f8fa] text-[#344054]' : 'text-[#98a2b3] hover:bg-[#f7f8fa]'
+              active ? 'bg-canvas text-ink-soft' : 'text-ink-faint hover:bg-canvas'
             }`}
           >
             <span
               className="size-2 rounded-[2px]"
               style={{
                 backgroundColor: active ? color.border : 'transparent',
-                border: `1.5px solid ${active ? color.border : '#cdd3dc'}`,
+                border: `1.5px solid ${active ? color.border : 'var(--color-line-strong)'}`,
               }}
               aria-hidden
             />

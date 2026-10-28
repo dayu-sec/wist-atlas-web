@@ -8,7 +8,7 @@ import type { NodeKind } from '../types/domain';
  * 现在每张卡片上有标题、副标题、计数，尺寸就是信息密度的约束。
  */
 export const NODE_DIMS: Record<NodeKind, { width: number; height: number }> = {
-  HostInventory: { width: 320, height: 148 },
+  HostInventory: { width: 320, height: 176 },
   NetworkSegment: { width: 256, height: 64 },
   ProcessSummary: { width: 320, height: 272 },
   ProcessGroup: { width: 224, height: 60 },

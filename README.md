@@ -1,73 +1,72 @@
-# React + TypeScript + Vite
+# wist-atlas-web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`wist-atlas` 的可视化前端。独立构建、独立发版，通过 `/api` 访问 `wist-atlas` 后端。
 
-Currently, two official plugins are available:
+- 后端仓：[`wist-atlas`](https://github.com/dayu-sec/wist-atlas)
+- 编排仓：[`wist-atlas-stack`](https://github.com/dayu-sec/wist-atlas-stack)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 技术栈
 
-## React Compiler
+- React 19 + TypeScript
+- Vite 8
+- Tailwind CSS 4
+- Cytoscape（拓扑画布）
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 开发
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+默认把 `/api` 代理到 `http://localhost:8080`（`atlas` 的默认监听地址）。后端不在默认地址时：
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+VITE_API_PROXY_TARGET=http://127.0.0.1:18080 npm run dev
 ```
+
+后端可先用内存演示模式启动：
+
+```bash
+cd ../wist-atlas
+cargo run -p atlas-app -- memory serve --listen 0.0.0.0:8080
+```
+
+## 构建与检查
+
+```bash
+npm run build   # 输出到 dist/
+npm run lint
+```
+
+## 镜像
+
+```bash
+docker build -t wist-atlas-web:dev .
+```
+
+运行镜像时把 `/api` 反代到后端：
+
+```bash
+docker run --rm -p 8080:80 \
+  --add-host atlas:host-gateway \
+  wist-atlas-web:dev
+```
+
+镜像内 nginx 监听 `80`，静态文件来自 `dist/`，`/api` 反代到 `http://atlas:8080`。
+在 `wist-atlas-stack` 里，`atlas` 是 compose 服务名，不需要额外配置。
+
+## 目录
+
+```text
+src/
+  api/         后端 API client
+  components/  画布、面板、卡片
+  hooks/       状态与主题
+  types/       前端 DTO（对应后端 api-contract.md）
+  utils/       纯展示逻辑
+public/
+  fixtures/    零后端依赖的示例数据
+```
+
+API 契约以后端仓的 [`doc/frontend/api-contract.md`](https://github.com/dayu-sec/wist-atlas/blob/main/doc/frontend/api-contract.md) 为准。

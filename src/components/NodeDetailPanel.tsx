@@ -7,7 +7,11 @@ import type {
 import { getNodeStyle } from '../utils/colors';
 import { formatAddressFamily, parseTopPrograms } from '../utils/presentation';
 import { basename, formatCount, formatRelative, truncate } from '../utils/format';
-import { ArrowRightIcon, CloseIcon, KindGlyph } from './icons';
+import { formatMbps, type NodeTelemetry } from '../utils/telemetry';
+import type { NodeStatus } from '../utils/status';
+import { ArrowRightIcon, CloseIcon, FocusIcon, KindGlyph } from './icons';
+import Sparkline from './Sparkline';
+import { StatusPill } from './StatusDot';
 
 /** 容器详情里最多列多少个进程。节点上几十个进程是常态，面板不是清单。 */
 const CONTAINER_PROCESS_LIMIT = 8;
@@ -26,6 +30,12 @@ type Props = {
   onOpenService?: (serviceObjectId: string) => void;
   /** 主机节点：在网段视图里反着切回那台主机的聚焦图。 */
   onFocusHost?: (hostObjectId: string) => void;
+  status: NodeStatus | null;
+  telemetry?: NodeTelemetry;
+  demo: boolean;
+  focused: boolean;
+  onFocus: () => void;
+  onExitFocus: () => void;
 };
 
 export default function NodeDetailPanel({
@@ -39,6 +49,12 @@ export default function NodeDetailPanel({
   onOpenNetwork,
   onOpenService,
   onFocusHost,
+  status,
+  telemetry,
+  demo,
+  focused,
+  onFocus,
+  onExitFocus,
 }: Props) {
   if (!node) return null;
 
@@ -51,7 +67,7 @@ export default function NodeDetailPanel({
         : node.label;
 
   return (
-    <aside className="absolute inset-y-0 right-0 z-30 flex w-[336px] flex-col border-l border-line bg-surface shadow-[-12px_0_32px_-24px_rgba(16,24,40,0.35)]">
+    <aside className="shell absolute inset-y-0 right-0 z-30 flex w-[336px] flex-col border-l border-line shadow-[-12px_0_32px_-24px_rgba(0,0,0,0.45)]">
       <header className="flex items-start gap-2.5 border-b border-line px-4 py-3.5">
         <span
           className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-[8px]"
@@ -61,24 +77,34 @@ export default function NodeDetailPanel({
           <KindGlyph kind={node.objectKind} className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[9.5px] font-medium uppercase leading-none tracking-[0.08em] text-[#98a2b3]">
+          <div className="text-[9.5px] font-medium uppercase leading-none tracking-[0.08em] text-ink-faint">
             {style.label}
           </div>
           <h3 className="mt-1 truncate text-[13px] font-semibold leading-4 text-ink" title={title}>
             {title}
           </h3>
+          <div className="mt-1.5 flex items-center gap-2">
+            {status ? <StatusPill status={status} /> : null}
+            {focused ? (
+              <span className="rounded-full border border-brand-line bg-brand-soft px-2 py-0.5 text-[9.5px] font-medium text-brand-strong">
+                聚焦中
+              </span>
+            ) : null}
+          </div>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="关闭"
-          className="-mr-1 grid size-7 shrink-0 place-items-center rounded-[7px] text-[#98a2b3] transition-colors hover:bg-[#f2f4f7] hover:text-[#344054]"
+          className="-mr-1 grid size-7 shrink-0 place-items-center rounded-[7px] text-ink-faint transition-colors hover:bg-subtle hover:text-ink-soft"
         >
           <CloseIcon className="size-4" />
         </button>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
+        <TelemetrySection node={node} telemetry={telemetry} demo={demo} />
+
         {node.objectKind === 'HostInventory' && hostTopology?.host.id === node.objectId ? (
           <HostDetail topology={hostTopology} />
         ) : node.objectKind === 'NetworkSegment' ? (
@@ -119,6 +145,21 @@ export default function NodeDetailPanel({
           </DrillButton>
         ) : null}
       </div>
+
+      <div className="border-t border-line px-4 py-3">
+        <button
+          type="button"
+          onClick={focused ? onExitFocus : onFocus}
+          className={`flex h-8 w-full items-center justify-center gap-1.5 rounded-lg text-[11.5px] font-medium transition-colors ${
+            focused
+              ? 'border border-line bg-surface text-ink-soft hover:border-line-strong hover:bg-elevated'
+              : 'bg-brand text-white hover:bg-brand-strong'
+          }`}
+        >
+          <FocusIcon className="size-3.5" />
+          {focused ? '退出聚焦' : '在图中聚焦'}
+        </button>
+      </div>
     </aside>
   );
 }
@@ -128,11 +169,102 @@ function DrillButton({ children, onClick }: { children: React.ReactNode; onClick
     <button
       type="button"
       onClick={onClick}
-      className="mt-4 flex w-full items-center justify-between rounded-lg border border-line bg-[#fcfcfd] px-3 py-2 text-[11.5px] font-medium text-[#344054] transition-colors hover:border-brand/40 hover:bg-white hover:text-brand"
+      className="mt-4 flex w-full items-center justify-between rounded-lg border border-line bg-elevated px-3 py-2 text-[11.5px] font-medium text-ink-soft transition-colors hover:border-brand/40 hover:bg-surface hover:text-brand"
     >
       {children}
       <ArrowRightIcon className="size-3.5" />
     </button>
+  );
+}
+
+/**
+ * 详情面板顶部的遥测区：主机/网段给吞吐，运行时给进程状态分布和趋势。
+ * 没有遥测时只留一行说明，不画空图。
+ */
+function TelemetrySection({
+  node,
+  telemetry,
+  demo,
+}: {
+  node: HostProcessTopologyNode;
+  telemetry?: NodeTelemetry;
+  demo: boolean;
+}) {
+  const relevant =
+    node.objectKind === 'HostInventory' ||
+    node.objectKind === 'NetworkSegment' ||
+    node.objectKind === 'ProcessSummary';
+  if (!relevant) return null;
+
+  if (!telemetry) {
+    return (
+      <div className="mb-4 rounded-lg border border-dashed border-line px-3 py-2 text-[10px] text-ink-faint">
+        遥测未接入 · 流量与趋势暂不可用
+      </div>
+    );
+  }
+
+  if (node.objectKind === 'ProcessSummary' && telemetry.state) {
+    const total =
+      telemetry.state.running + telemetry.state.sleeping + telemetry.state.other || 1;
+    const pct = (value: number) => `${Math.max(0, (value / total) * 100)}%`;
+    return (
+      <section className="mb-4">
+        <h4 className="mb-2 flex items-center gap-1.5 text-[9.5px] font-medium uppercase tracking-[0.08em] text-ink-faint">
+          进程状态{demo ? <span className="text-warn-strong">· 示例</span> : null}
+        </h4>
+        <div className="flex h-[7px] overflow-hidden rounded-full bg-subtle">
+          <i className="bg-ok" style={{ width: pct(telemetry.state.running) }} />
+          <i className="bg-info" style={{ width: pct(telemetry.state.sleeping) }} />
+          <i className="bg-warn" style={{ width: pct(telemetry.state.other) }} />
+        </div>
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-ink-mute">
+          <span className="flex items-center gap-1">
+            <i className="size-1 rounded-full bg-ok" /> 运行 {formatCount(telemetry.state.running)}
+          </span>
+          <span className="flex items-center gap-1">
+            <i className="size-1 rounded-full bg-info" /> 休眠 {formatCount(telemetry.state.sleeping)}
+          </span>
+          <span className="flex items-center gap-1">
+            <i className="size-1 rounded-full bg-warn" /> 其他 {formatCount(telemetry.state.other)}
+          </span>
+        </div>
+        {telemetry.stateHistory && telemetry.stateHistory.length > 1 ? (
+          <div className="mt-2.5 rounded-lg border border-line bg-elevated px-2.5 pb-1.5 pt-2">
+            <div className="flex items-baseline justify-between text-[9px] text-ink-faint">
+              <span>进程数 · 近 15 分钟</span>
+              <span>{demo ? '示例' : ''}</span>
+            </div>
+            <Sparkline values={telemetry.stateHistory} height={38} className="mt-1" />
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
+  return (
+    <section className="mb-4">
+      <h4 className="mb-2 flex items-center gap-1.5 text-[9.5px] font-medium uppercase tracking-[0.08em] text-ink-faint">
+        吞吐{demo ? <span className="text-warn-strong">· 示例</span> : null}
+      </h4>
+      <div className="rounded-lg border border-line bg-elevated px-3 py-2.5">
+        <div className="flex items-baseline gap-3">
+          <span className="tnum text-[18px] font-semibold leading-6 text-ink">
+            {formatMbps(telemetry.inMbps)}
+            <span className="ml-0.5 text-[9px] font-normal text-ink-faint">MB/s ↓</span>
+          </span>
+          <span className="tnum text-[11px] text-ink-mute">
+            {formatMbps(telemetry.outMbps)} ↑
+          </span>
+          {telemetry.latencyMs != null ? (
+            <span className="ml-auto text-[9.5px] text-ink-faint">延迟 {telemetry.latencyMs}ms</span>
+          ) : null}
+        </div>
+        {telemetry.history && telemetry.history.length > 1 ? (
+          <Sparkline values={telemetry.history} height={42} className="mt-1.5" />
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -164,29 +296,29 @@ function HostDetail({ topology }: { topology: HostTopologyDto }) {
             {containers.map((container) => (
               <li
                 key={container.container_id}
-                className="rounded-[8px] border border-[#f2f4f7] bg-[#f9fafb] px-2.5 py-1.5"
+                className="rounded-[8px] border border-line-soft bg-elevated px-2.5 py-1.5"
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <span
-                    className="truncate text-[11px] font-medium text-[#344054]"
+                    className="truncate text-[11px] font-medium text-ink-soft"
                     title={container.container_name ?? container.container_id}
                   >
                     {container.container_name ?? container.container_id.slice(0, 12)}
                   </span>
-                  <span className="shrink-0 font-mono text-[9.5px] text-[#98a2b3]">
+                  <span className="shrink-0 font-mono text-[9.5px] text-ink-faint">
                     {container.runtime_type}
                   </span>
                 </div>
                 {container.image_ref && (
                   <div
-                    className="mt-0.5 truncate font-mono text-[9.5px] leading-3 text-[#667085]"
+                    className="mt-0.5 truncate font-mono text-[9.5px] leading-3 text-ink-mute"
                     title={container.image_ref}
                   >
                     {container.image_ref}
                   </div>
                 )}
                 {container.pod_name && (
-                  <div className="mt-0.5 truncate text-[9.5px] leading-3 text-[#98a2b3]">
+                  <div className="mt-0.5 truncate text-[9.5px] leading-3 text-ink-faint">
                     {container.k8s_namespace ? `${container.k8s_namespace} / ` : ''}
                     {container.pod_name}
                   </div>
@@ -206,13 +338,13 @@ function HostDetail({ topology }: { topology: HostTopologyDto }) {
               return (
                 <li
                   key={`${String(segment.network_segment_id ?? index)}`}
-                  className="flex items-center justify-between gap-2 rounded-[8px] bg-[#f9fafb] px-2.5 py-1.5"
+                  className="flex items-center justify-between gap-2 rounded-[8px] bg-elevated px-2.5 py-1.5"
                 >
-                  <span className="truncate font-mono text-[10.5px] text-[#344054]" title={name}>
+                  <span className="truncate font-mono text-[10.5px] text-ink-soft" title={name}>
                     {truncate(name, 30)}
                   </span>
                   {family && (
-                    <span className="shrink-0 text-[9px] font-medium uppercase tracking-[0.06em] text-[#98a2b3]">
+                    <span className="shrink-0 text-[9px] font-medium uppercase tracking-[0.06em] text-ink-faint">
                       {family}
                     </span>
                   )}
@@ -228,10 +360,10 @@ function HostDetail({ topology }: { topology: HostTopologyDto }) {
           <ul className="space-y-1.5">
             {topology.processGroups.slice(0, 5).map((group, index) => (
               <li key={`${String(group.display_name)}-${index}`} className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-[11px] text-[#344054]" title={String(group.display_name)}>
+                <span className="truncate text-[11px] text-ink-soft" title={String(group.display_name)}>
                   {String(group.display_name ?? '-')}
                 </span>
-                <span className="tnum shrink-0 text-[10.5px] text-[#98a2b3]">
+                <span className="tnum shrink-0 text-[10.5px] text-ink-faint">
                   {String(group.process_count ?? '-')}
                 </span>
               </li>
@@ -329,11 +461,11 @@ function ServiceDetail({
 
       <Section title="监听端点">
         {endpoints.length === 0 ? (
-          <p className="text-[11px] text-[#98a2b3]">没有采集到监听地址</p>
+          <p className="text-[11px] text-ink-faint">没有采集到监听地址</p>
         ) : (
           <ul className="space-y-1">
             {endpoints.map((endpoint) => (
-              <li key={endpoint} className="font-mono text-[10.5px] text-[#475467]">
+              <li key={endpoint} className="font-mono text-[10.5px] text-ink-soft">
                 {endpoint}
               </li>
             ))}
@@ -343,7 +475,7 @@ function ServiceDetail({
 
       <Section title={`运行主机（${instances.length}）`}>
         {instances.length === 0 ? (
-          <p className="text-[11px] text-[#98a2b3]">没有实例，可能已停止监听</p>
+          <p className="text-[11px] text-ink-faint">没有实例，可能已停止监听</p>
         ) : (
           <ul className="space-y-1.5">
             {instances.map((instance) => {
@@ -353,21 +485,21 @@ function ServiceDetail({
               return (
                 <li
                   key={instance.id}
-                  className="rounded-[8px] border border-[#f2f4f7] bg-[#f9fafb] px-2.5 py-1.5"
+                  className="rounded-[8px] border border-line-soft bg-elevated px-2.5 py-1.5"
                 >
                   <div className="flex items-baseline justify-between gap-2">
                     <span
-                      className="truncate text-[11px] font-medium text-[#344054]"
+                      className="truncate text-[11px] font-medium text-ink-soft"
                       title={hostName ?? undefined}
                     >
                       {hostName ?? '未知主机'}
                     </span>
-                    <span className="shrink-0 text-[9.5px] text-[#98a2b3]">
+                    <span className="shrink-0 text-[9.5px] text-ink-faint">
                       {formatRelative(lastSeenAt)}
                     </span>
                   </div>
                   {instanceEndpoints.length > 0 && (
-                    <div className="mt-0.5 font-mono text-[9.5px] leading-3 text-[#98a2b3]">
+                    <div className="mt-0.5 font-mono text-[9.5px] leading-3 text-ink-faint">
                       {instanceEndpoints.join(' · ')}
                     </div>
                   )}
@@ -448,11 +580,11 @@ function ContainerDetail({
 
       <Section title={`监听端点（${instances.length}）`}>
         {instances.length === 0 ? (
-          <p className="text-[11px] text-[#98a2b3]">这个容器没有采集到监听端口</p>
+          <p className="text-[11px] text-ink-faint">这个容器没有采集到监听端口</p>
         ) : (
           <ul className="space-y-1">
             {instances.map((instance) => (
-              <li key={instance.id} className="font-mono text-[10.5px] text-[#475467]">
+              <li key={instance.id} className="font-mono text-[10.5px] text-ink-soft">
                 {instance.label}
               </li>
             ))}
@@ -469,19 +601,19 @@ function ContainerDetail({
                 className="flex items-baseline justify-between gap-2"
               >
                 <span
-                  className="truncate font-mono text-[10.5px] text-[#475467]"
+                  className="truncate font-mono text-[10.5px] text-ink-soft"
                   title={process.executable}
                 >
                   {process.executable ? basename(process.executable) : '—'}
                 </span>
-                <span className="tnum shrink-0 text-[9.5px] text-[#98a2b3]">
+                <span className="tnum shrink-0 text-[9.5px] text-ink-faint">
                   {process.pid ?? '—'}
                 </span>
               </li>
             ))}
           </ul>
           {processes.length > CONTAINER_PROCESS_LIMIT && (
-            <p className="mt-1 text-[9.5px] text-[#b4bcc8]">
+            <p className="mt-1 text-[9.5px] text-ink-faint">
               还有 {processes.length - CONTAINER_PROCESS_LIMIT} 个进程未列出
             </p>
           )}
@@ -531,22 +663,22 @@ function RuntimeDetail({
           <ul className="space-y-1.5">
             {programs.map((program) => (
               <li key={program.name} className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-[11px] text-[#344054]" title={program.name}>
+                <span className="truncate text-[11px] text-ink-soft" title={program.name}>
                   {program.name}
                 </span>
-                <span className="tnum shrink-0 text-[10.5px] text-[#98a2b3]">{program.count}</span>
+                <span className="tnum shrink-0 text-[10.5px] text-ink-faint">{program.count}</span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-[11px] text-[#98a2b3]">暂无程序摘要</p>
+          <p className="text-[11px] text-ink-faint">暂无程序摘要</p>
         )}
       </Section>
 
       <button
         type="button"
         onClick={onExpand}
-        className="flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#4f46e5] text-[11.5px] font-medium text-white transition-colors hover:bg-[#4338ca]"
+        className="flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] bg-brand text-[11.5px] font-medium text-white transition-colors hover:bg-brand-strong"
       >
         {expanded ? '收起进程分组' : '在图中展开进程分组'}
         <ArrowRightIcon className="size-3.5" />
@@ -589,7 +721,7 @@ function ProcessGroupDetail({
             <Metric label="隐藏分组" value={hiddenGroups ?? 0} />
             <Metric label="隐藏进程" value={hiddenProcesses ?? 0} />
           </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-[#98a2b3]">
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
             当前只显示进程数最多的前 {displayLimit ?? '-'} 组。点这个节点可以继续加载更多分组。
           </p>
         </Section>
@@ -638,13 +770,13 @@ function PropertiesDetail({ node }: { node: HostProcessTopologyNode }) {
     <div className="space-y-5">
       <Section title="属性">
         {entries.length === 0 ? (
-          <p className="text-[11px] text-[#98a2b3]">没有属性</p>
+          <p className="text-[11px] text-ink-faint">没有属性</p>
         ) : (
           <dl className="space-y-1.5">
             {entries.map(([key, value]) => (
               <div key={key} className="flex items-baseline justify-between gap-3">
-                <dt className="shrink-0 text-[10px] text-[#98a2b3]">{key}</dt>
-                <dd className="min-w-0 text-right font-mono text-[10px] break-all text-[#475467]">
+                <dt className="shrink-0 text-[10px] text-ink-faint">{key}</dt>
+                <dd className="min-w-0 text-right font-mono text-[10px] break-all text-ink-soft">
                   {formatValue(value)}
                 </dd>
               </div>
@@ -667,10 +799,10 @@ function PropertiesDetail({ node }: { node: HostProcessTopologyNode }) {
 function GraphId({ id }: { id: string }) {
   return (
     <details className="group">
-      <summary className="cursor-pointer list-none text-[10px] text-[#98a2b3] transition-colors hover:text-[#475467]">
+      <summary className="cursor-pointer list-none text-[10px] text-ink-faint transition-colors hover:text-ink-soft">
         图元素 ID
       </summary>
-      <p className="mt-1 font-mono text-[10px] break-all text-[#98a2b3]">{id}</p>
+      <p className="mt-1 font-mono text-[10px] break-all text-ink-faint">{id}</p>
     </details>
   );
 }
@@ -678,7 +810,7 @@ function GraphId({ id }: { id: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h4 className="mb-2 text-[9.5px] font-medium uppercase tracking-[0.08em] text-[#98a2b3]">{title}</h4>
+      <h4 className="mb-2 text-[9.5px] font-medium uppercase tracking-[0.08em] text-ink-faint">{title}</h4>
       <div className="space-y-1.5">{children}</div>
     </section>
   );
@@ -687,19 +819,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-[11px]">
-      <span className="shrink-0 text-[#98a2b3]">{label}</span>
-      <span className="min-w-0 text-right text-[#344054]">{children}</span>
+      <span className="shrink-0 text-ink-faint">{label}</span>
+      <span className="min-w-0 text-right text-ink-soft">{children}</span>
     </div>
   );
 }
 
 function Metric({ label, value, suffix }: { label: string; value: number; suffix?: string }) {
   return (
-    <div className="rounded-[8px] border border-[#f2f4f7] bg-[#f9fafb] px-2.5 py-2">
-      <div className="text-[9.5px] uppercase tracking-[0.06em] text-[#98a2b3]">{label}</div>
+    <div className="rounded-[8px] border border-line-soft bg-elevated px-2.5 py-2">
+      <div className="text-[9.5px] uppercase tracking-[0.06em] text-ink-faint">{label}</div>
       <div className="tnum mt-0.5 text-[15px] font-semibold leading-tight text-ink">
         {formatCount(value)}
-        {suffix && <span className="ml-0.5 text-[10px] font-normal text-[#98a2b3]">{suffix}</span>}
+        {suffix && <span className="ml-0.5 text-[10px] font-normal text-ink-faint">{suffix}</span>}
       </div>
     </div>
   );
@@ -708,7 +840,7 @@ function Metric({ label, value, suffix }: { label: string; value: number; suffix
 function Notice({ tone, children }: { tone: 'info' | 'warn'; children: React.ReactNode }) {
   const className =
     tone === 'warn'
-      ? 'border-[#fedf89] bg-[#fffaeb] text-[#b54708]'
+      ? 'border-warn-line bg-warn-soft text-warn-strong'
       : 'border-brand/25 bg-brand-soft text-brand';
   return <div className={`rounded-[8px] border px-3 py-2 text-[11px] leading-4 ${className}`}>{children}</div>;
 }
@@ -720,10 +852,10 @@ function ViewModeBadge({ mode }: { mode: 'overview' | 'expanded' | 'loading' | n
     mode === 'loading' ? '正在加载更多分组' : mode === 'expanded' ? '已展开分组' : '概览视图';
   const className =
     mode === 'loading'
-      ? 'border-[#fedf89] bg-[#fffaeb] text-[#b54708]'
+      ? 'border-warn-line bg-warn-soft text-warn-strong'
       : mode === 'expanded'
         ? 'border-brand/25 bg-brand-soft text-brand'
-        : 'border-line bg-[#f9fafb] text-[#475467]';
+        : 'border-line bg-elevated text-ink-soft';
 
   return <div className={`rounded-[8px] border px-3 py-2 text-[11px] ${className}`}>{text}</div>;
 }

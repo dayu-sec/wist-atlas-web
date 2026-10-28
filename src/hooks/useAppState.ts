@@ -12,6 +12,7 @@ const initialState: AppState = {
   loading: false,
   error: null,
   selectedNodeId: null,
+  focusNodeId: null,
   layerVisibility: { ...initialLayerVisibility },
   searchQuery: '',
 };
@@ -21,7 +22,7 @@ function reducer(state: AppState, action: AppAction): AppState {
     case 'FETCH_GRAPH_START':
       return { ...state, loading: true, error: null };
     case 'FETCH_GRAPH_SUCCESS':
-      return { ...state, loading: false, graph: action.graph };
+      return { ...state, loading: false, graph: action.graph, focusNodeId: null };
     case 'FETCH_HOST_TOPOLOGY_SUCCESS':
       return { ...state, hostTopology: action.hostTopology };
     case 'CLEAR_HOST_TOPOLOGY_UNLESS':
@@ -35,6 +36,10 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, loading: false, error: action.error };
     case 'SELECT_NODE':
       return { ...state, selectedNodeId: action.nodeId };
+    case 'FOCUS_NODE':
+      return { ...state, focusNodeId: action.nodeId, selectedNodeId: action.nodeId };
+    case 'CLEAR_FOCUS':
+      return { ...state, focusNodeId: null };
     case 'TOGGLE_LAYER':
       return {
         ...state,

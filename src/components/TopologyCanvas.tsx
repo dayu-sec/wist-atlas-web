@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import cytoscape, { type Core } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import coseBilkent from 'cytoscape-cose-bilkent';
 import type { HostProcessTopologyGraph, LayerKind, NodeKind } from '../types/domain';
+import type { Theme } from '../hooks/useTheme';
 import { graphToCyElements } from '../utils/graph-to-cy';
 import { buildSearchIndex } from '../utils/search';
 import {
@@ -12,6 +13,8 @@ import {
   type LaneAnnotation,
 } from '../utils/focus-layout';
 import { nodeDims } from '../utils/presentation';
+import { resolveNodeStatus, type NodeStatus } from '../utils/status';
+import type { TelemetryMap } from '../utils/telemetry';
 import NodeCard, { type GraphNodeHint, type HostStats } from './NodeCard';
 import { FitIcon, MinusIcon, PlusIcon } from './icons';
 
@@ -28,6 +31,10 @@ type Props = {
   scannedAt?: string | null;
   hostArch?: string | null;
   loading: boolean;
+  theme: Theme;
+  telemetry: TelemetryMap;
+  focusNodeId: string | null;
+  onFocusNode: (nodeId: string) => void;
 };
 
 const LAYOUT_OPTIONS: Record<'dagre' | 'cose-bilkent', cytoscape.LayoutOptions> = {
@@ -53,54 +60,80 @@ const LAYOUT_OPTIONS: Record<'dagre' | 'cose-bilkent', cytoscape.LayoutOptions> 
 /** 图变深之后的两个落点：分层 / 力导向。 */
 type ConcreteLayout = 'dagre' | 'cose-bilkent';
 
-const CY_STYLE = [
-  {
-    selector: 'node',
-    style: {
-      // 节点的可见外形交给 HTML 卡片；cytoscape 只负责布局、连线和命中区。
-      width: (element: cytoscape.NodeSingular) =>
-        nodeDims(element.data('objectKind') as NodeKind).width,
-      height: (element: cytoscape.NodeSingular) =>
-        nodeDims(element.data('objectKind') as NodeKind).height,
-      shape: 'round-rectangle',
-      'background-opacity': 0,
-      'border-width': 0,
-      label: '',
-      'overlay-opacity': 0,
+const EDGE_THEME = {
+  light: {
+    base: '#c3ccd9',
+    network: '#cbd5e1',
+    responsibility: '#e4d7fb',
+    neighbor: '#7c3aed',
+    hot: '#94a3b8',
+    dimOpacity: 0.16,
+  },
+  dark: {
+    base: '#26374f',
+    network: '#334a6a',
+    responsibility: '#3d3168',
+    neighbor: '#a78bfa',
+    hot: '#cbd5e1',
+    dimOpacity: 0.12,
+  },
+} as const;
+
+function buildCyStyle(theme: Theme) {
+  const edge = EDGE_THEME[theme];
+  return [
+    {
+      selector: 'node',
+      style: {
+        // 节点的可见外形交给 HTML 卡片；cytoscape 只负责布局、连线和命中区。
+        width: (element: cytoscape.NodeSingular) =>
+          nodeDims(element.data('objectKind') as NodeKind).width,
+        height: (element: cytoscape.NodeSingular) =>
+          nodeDims(element.data('objectKind') as NodeKind).height,
+        shape: 'round-rectangle',
+        'background-opacity': 0,
+        'border-width': 0,
+        label: '',
+        'overlay-opacity': 0,
+      },
     },
-  },
-  {
-    selector: 'edge',
-    style: {
-      width: 1.4,
-      'line-color': '#c3ccd9',
-      'curve-style': 'bezier',
-      'control-point-step-size': 36,
-      'line-cap': 'round',
-      'overlay-opacity': 0,
+    {
+      selector: 'edge',
+      style: {
+        width: 1.4,
+        'line-color': edge.base,
+        'curve-style': 'bezier',
+        'control-point-step-size': 36,
+        'line-cap': 'round',
+        'overlay-opacity': 0,
+      },
     },
-  },
-  {
-    selector: 'edge[edgeKind = "host_network_assoc"]',
-    style: { 'line-color': '#cbd5e1' },
-  },
-  {
-    selector: 'edge[edgeKind = "responsibility_assignment"]',
-    style: { 'line-color': '#e4d7fb', 'line-style': 'dashed' },
-  },
-  {
-    selector: 'edge.neighbor',
-    style: { width: 1.8, 'line-color': '#a5b4fc' },
-  },
-  {
-    selector: 'edge.hot',
-    style: { width: 2, 'line-color': '#94a3b8' },
-  },
-  {
-    selector: 'edge.dimmed',
-    style: { opacity: 0.16 },
-  },
-] as cytoscape.StylesheetStyle[];
+    {
+      selector: 'edge[edgeKind = "host_network_assoc"]',
+      style: { 'line-color': edge.network },
+    },
+    {
+      selector: 'edge[edgeKind = "responsibility_assignment"]',
+      style: { 'line-color': edge.responsibility, 'line-style': 'dashed' },
+    },
+    {
+      selector: 'edge.neighbor',
+      style: { width: 2, 'line-color': edge.neighbor },
+    },
+    {
+      selector: 'edge.hot',
+      style: { width: 2, 'line-color': edge.hot },
+    },
+    {
+      selector: 'edge.dimmed',
+      style: { opacity: edge.dimOpacity },
+    },
+    {
+      selector: 'edge.muted',
+      style: { opacity: 0.08 },
+    },
+  ] as cytoscape.StylesheetStyle[];
+}
 
 const MIN_ZOOM = 0.12;
 const MAX_ZOOM = 2.4;
@@ -116,6 +149,10 @@ export default function TopologyCanvas({
   scannedAt,
   hostArch,
   loading,
+  theme,
+  telemetry,
+  focusNodeId,
+  onFocusNode,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -161,6 +198,8 @@ export default function TopologyCanvas({
   // 这些回调随 annotations / graph 身份变化，但 cytoscape 只应该初始化一次。
   const scheduleSyncRef = useRef<() => void>(() => {});
   const fitViewRef = useRef<() => void>(() => {});
+  const fitFocusRef = useRef<(nodeId: string) => void>(() => {});
+  const focusNodeIdRef = useRef<string | null>(focusNodeId);
   const annotationsRef = useRef<LaneAnnotation[]>([]);
 
   const hostStats = useMemo<HostStats | undefined>(() => {
@@ -182,6 +221,24 @@ export default function TopologyCanvas({
       scannedAt: scannedAt ?? null,
     };
   }, [visibleGraph, scannedAt, hostArch]);
+
+  const statusByNodeId = useMemo(() => {
+    const statuses = new Map<string, NodeStatus>();
+    for (const node of visibleGraph?.nodes ?? []) {
+      statuses.set(node.id, resolveNodeStatus(node, { scannedAt, telemetry }));
+    }
+    return statuses;
+  }, [visibleGraph, scannedAt, telemetry]);
+
+  const focusNeighborIds = useMemo(() => {
+    if (!focusNodeId || !visibleGraph) return null;
+    const ids = new Set<string>([focusNodeId]);
+    for (const edge of visibleGraph.edges) {
+      if (edge.source === focusNodeId) ids.add(edge.target);
+      if (edge.target === focusNodeId) ids.add(edge.source);
+    }
+    return ids;
+  }, [focusNodeId, visibleGraph]);
 
   const expanded = useMemo(
     () => Boolean(visibleGraph?.nodes.some((node) => node.objectKind === 'ProcessGroup')),
@@ -257,12 +314,44 @@ export default function TopologyCanvas({
     scheduleSync();
   }, [scheduleSync]);
 
-  // 把最新回调同步进 ref：cytoscape 的事件回调只注册一次，不能闭包到首帧的版本。
-  useEffect(() => {
+  const fitFocus = useCallback(
+    (nodeId: string) => {
+      const cy = cyRef.current;
+      if (!cy) return;
+      const node = cy.getElementById(nodeId);
+      if (node.length === 0) return;
+      const elements = node.closedNeighborhood();
+      if (elements.length === 0) return;
+      const box = elements.boundingBox() as { x1: number; y1: number; w: number; h: number };
+      // 右侧 inspector 是覆盖层：镜头要往左让出 336px，不然焦点卡片会被抽屉压住。
+      const inset = selectedNodeId ? 336 : 0;
+      const pad = 72;
+      const availableWidth = Math.max(240, cy.width() - inset - pad * 2);
+      const availableHeight = Math.max(240, cy.height() - pad * 2);
+      const zoom = Math.min(
+        availableWidth / Math.max(box.w, 1),
+        availableHeight / Math.max(box.h, 1),
+        1.2,
+      );
+      cy.zoom(zoom);
+      cy.pan({
+        x: (cy.width() - inset) / 2 - (box.x1 + box.w / 2) * zoom,
+        y: cy.height() / 2 - (box.y1 + box.h / 2) * zoom,
+      });
+      scheduleSync();
+    },
+    [scheduleSync, selectedNodeId],
+  );
+
+  // 把最新回调同步进 ref：cytoscape / ResizeObserver 的回调只注册一次，
+  // 不能闭包到首帧的版本。用 layout effect，保证在 ResizeObserver 的 rAF 之前更新。
+  useLayoutEffect(() => {
     annotationsRef.current = annotations;
     scheduleSyncRef.current = scheduleSync;
     fitViewRef.current = fitView;
-  }, [annotations, scheduleSync, fitView]);
+    fitFocusRef.current = fitFocus;
+    focusNodeIdRef.current = focusNodeId;
+  }, [annotations, scheduleSync, fitView, fitFocus, focusNodeId]);
 
   useEffect(() => {
     if (!containerRef.current || cyRef.current) return;
@@ -276,7 +365,7 @@ export default function TopologyCanvas({
       wheelSensitivity: 0.2,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
-      style: CY_STYLE,
+      style: buildCyStyle(theme),
     });
 
     const handleViewport = () => scheduleSyncRef.current();
@@ -290,7 +379,9 @@ export default function TopologyCanvas({
       // fit 只能横向居中，整张图会被顶到画布上沿。尺寸变化后必须重新 fit。
       cy.resize();
       window.requestAnimationFrame(() => {
-        fitViewRef.current();
+        const focusId = focusNodeIdRef.current;
+        if (focusId) fitFocusRef.current(focusId);
+        else fitViewRef.current();
         scheduleSyncRef.current();
       });
     });
@@ -306,7 +397,14 @@ export default function TopologyCanvas({
       cy.destroy();
       cyRef.current = null;
     };
+    // 初始化只跑一次；主题变化由下面的 cy.style 单独处理。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 主题切换只换 cytoscape 的连线颜色，不重建实例、不重排。
+  useEffect(() => {
+    cyRef.current?.style(buildCyStyle(theme));
+  }, [theme]);
 
   // 结构变化 → 重建元素 + 布局。只依赖签名，不依赖 graph 的对象身份。
   useEffect(() => {
@@ -345,6 +443,18 @@ export default function TopologyCanvas({
   }, [graphSignature]);
 
 
+  // 聚焦：把镜头收到「焦点节点 + 一跳邻居」，否则 inspector 一开，
+  // 整张服务图会被压到 67%，聚焦节点反而看不清。
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    if (!focusNodeId) {
+      fitViewRef.current();
+      return;
+    }
+    fitFocusRef.current(focusNodeId);
+  }, [focusNodeId, graphSignature]);
+
   // 布局变化后卡片可能已经挂载完成，补一次同步（fit 的 render 事件不一定覆盖首帧）。
   useEffect(() => {
     scheduleSync();
@@ -377,15 +487,29 @@ export default function TopologyCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, graphSignature]);
 
-  // 选中：相邻边加一点色，但不把其余内容全部压暗 —— 画布要保住上下文。
+  /**
+   * 选中 / 聚焦共用一套边状态：
+   * - 无聚焦：选中节点的相邻边加色，其余保持原样；
+   * - 有聚焦：只亮聚焦节点的一跳边，其余边压到 muted。
+   */
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    cy.edges().removeClass('neighbor');
+    cy.edges().removeClass('neighbor').removeClass('muted');
+
+    if (focusNodeId) {
+      cy.edges().forEach((edge) => {
+        const connected = edge.source().id() === focusNodeId || edge.target().id() === focusNodeId;
+        edge.toggleClass('neighbor', connected);
+        edge.toggleClass('muted', !connected);
+      });
+      return;
+    }
+
     if (!selectedNodeId) return;
     const node = cy.getElementById(selectedNodeId);
     if (node.length > 0) node.connectedEdges().addClass('neighbor');
-  }, [selectedNodeId, graphSignature]);
+  }, [focusNodeId, selectedNodeId, graphSignature]);
 
   /**
    * hover 只动 cytoscape 的连线类，不 setState —— 每划过一张卡片就重渲染整层卡片不划算。
@@ -439,10 +563,17 @@ export default function TopologyCanvas({
                 hint={hints.get(node.id)}
                 hostStats={node.objectKind === 'HostInventory' ? hostStats : undefined}
                 selected={selectedNodeId === node.id}
-                dimmed={matchedIds ? !matchedIds.has(node.id) : false}
+                focused={focusNodeId === node.id}
+                dimmed={
+                  (matchedIds ? !matchedIds.has(node.id) : false) ||
+                  (focusNeighborIds ? !focusNeighborIds.has(node.id) : false)
+                }
                 expanded={expanded}
+                status={statusByNodeId.get(node.id) ?? { tone: 'unknown', label: '未采集' }}
+                telemetry={telemetry.nodes[node.id]}
                 onSelect={onSelectNode}
                 onExpand={onExpandNode}
+                onFocus={onFocusNode}
                 onHover={handleHover}
               />
             </div>
@@ -460,11 +591,11 @@ export default function TopologyCanvas({
             className="absolute left-0 top-0 origin-top-left whitespace-nowrap"
             style={{ width: annotation.width }}
           >
-            <div className="flex items-baseline justify-between gap-3 border-b border-[#dfe4eb] pb-1.5">
-              <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[#667085]">
+            <div className="flex items-baseline justify-between gap-3 border-b border-line pb-1.5">
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-ink-mute">
                 {annotation.text}
               </span>
-              <span className="tnum text-[10px] font-normal text-[#98a2b3]">{annotation.count}</span>
+              <span className="tnum text-[10px] font-normal text-ink-faint">{annotation.count}</span>
             </div>
           </div>
         ))}
@@ -481,14 +612,14 @@ export default function TopologyCanvas({
 
       {loading && !graph && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2.5">
-          <span className="size-5 animate-spin rounded-full border-2 border-[#d0d5dd] border-t-[#4f46e5]" />
-          <p className="text-[12px] text-[#667085]">正在读取拓扑…</p>
+          <span className="size-5 animate-spin rounded-full border-2 border-line-strong border-t-brand" />
+          <p className="text-[12px] text-ink-mute">正在读取拓扑…</p>
         </div>
       )}
 
       {empty && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
-          <span className="grid size-11 place-items-center rounded-xl border border-dashed border-[#d0d5dd] bg-white/70 text-[#98a2b3]">
+          <span className="grid size-11 place-items-center rounded-xl border border-dashed border-line-strong bg-surface/70 text-ink-faint">
             <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5">
               <circle cx="12" cy="5" r="2" />
               <circle cx="5" cy="18" r="2" />
@@ -497,8 +628,8 @@ export default function TopologyCanvas({
             </svg>
           </span>
           <div>
-            <p className="text-[13px] font-medium text-[#344054]">没有可展示的拓扑</p>
-            <p className="mt-1 text-[11px] text-[#98a2b3]">先导入一份发现快照，或按对象 ID 查询。</p>
+            <p className="text-[13px] font-medium text-ink-soft">没有可展示的拓扑</p>
+            <p className="mt-1 text-[11px] text-ink-faint">先导入一份发现快照，或按对象 ID 查询。</p>
           </div>
         </div>
       )}
@@ -523,7 +654,7 @@ function ZoomControls({
 }) {
   return (
     <div
-      className={`absolute bottom-4 z-20 flex items-center gap-0.5 rounded-[10px] border border-[#e4e7ec] bg-white/95 p-0.5 shadow-[0_1px_2px_rgba(16,24,40,0.05),0_4px_12px_-4px_rgba(16,24,40,0.12)] backdrop-blur transition-[right] duration-200 ${
+      className={`absolute bottom-4 z-20 flex items-center gap-0.5 rounded-[10px] border border-line bg-surface/95 p-0.5 shadow-[0_1px_2px_rgba(16,24,40,0.05),0_4px_12px_-4px_rgba(16,24,40,0.12)] backdrop-blur transition-[right] duration-200 ${
         shifted ? 'right-[352px]' : 'right-4'
       }`}
     >
@@ -534,14 +665,14 @@ function ZoomControls({
         type="button"
         onClick={onReset}
         title="缩放到 100%"
-        className="tnum h-7 w-11 rounded-[7px] text-[10.5px] font-medium text-[#475467] transition-colors hover:bg-[#f2f4f7]"
+        className="tnum h-7 w-11 rounded-[7px] text-[10.5px] font-medium text-ink-soft transition-colors hover:bg-subtle"
       >
         {Math.round(zoom * 100)}%
       </button>
       <ZoomButton label="放大" onClick={onZoomIn}>
         <PlusIcon className="size-3.5" />
       </ZoomButton>
-      <span className="mx-0.5 h-4 w-px bg-[#eaecf0]" aria-hidden />
+      <span className="mx-0.5 h-4 w-px bg-line" aria-hidden />
       <ZoomButton label="适配画布" onClick={onFit}>
         <FitIcon className="size-3.5" />
       </ZoomButton>
@@ -564,7 +695,7 @@ function ZoomButton({
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="grid size-7 place-items-center rounded-[7px] text-[#475467] transition-colors hover:bg-[#f2f4f7]"
+      className="grid size-7 place-items-center rounded-[7px] text-ink-soft transition-colors hover:bg-subtle"
     >
       {children}
     </button>

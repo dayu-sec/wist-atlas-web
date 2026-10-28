@@ -40,18 +40,18 @@ export default function ServiceListPanel({
         <button
           type="button"
           onClick={onToggle}
-          className="flex items-center gap-1 text-[9.5px] font-medium uppercase tracking-[0.08em] text-[#98a2b3] transition-colors hover:text-[#475467]"
+          className="flex items-center gap-1 text-[9.5px] font-medium uppercase tracking-[0.08em] text-ink-faint transition-colors hover:text-ink-soft"
         >
           <ChevronRight
             className={`size-3 transition-transform ${collapsed ? '' : 'rotate-90'}`}
           />
           服务清单
-          {total > 0 && <span className="text-[#b4bcc8]"> {formatCount(total)}</span>}
+          {total > 0 && <span className="text-ink-faint"> {formatCount(total)}</span>}
         </button>
         <button
           type="button"
           onClick={onClose}
-          className="rounded px-1 text-[10px] text-[#b4bcc8] transition-colors hover:text-[#475467]"
+          className="rounded px-1 text-[10px] text-ink-faint transition-colors hover:text-ink-soft"
           aria-label="关闭服务清单"
         >
           ✕
@@ -61,11 +61,11 @@ export default function ServiceListPanel({
       {collapsed ? null : (
         <div className="px-4 pb-3.5">
           {error ? (
-            <p className="text-[10.5px] leading-4 text-[#b42318]">{error}</p>
+            <p className="text-[10.5px] leading-4 text-danger-strong">{error}</p>
           ) : loading && !services ? (
-            <p className="text-[10.5px] text-[#98a2b3]">正在读取服务清单…</p>
+            <p className="text-[10.5px] text-ink-faint">正在读取服务清单…</p>
           ) : visible.length === 0 ? (
-            <p className="text-[10.5px] text-[#98a2b3]">还没有采集到服务</p>
+            <p className="text-[10.5px] text-ink-faint">还没有采集到服务</p>
           ) : (
             <ul className="-mx-1 space-y-0.5">
               {visible.map((service) => (
@@ -74,19 +74,19 @@ export default function ServiceListPanel({
                     type="button"
                     onClick={() => onOpenService(service.id)}
                     title={`${service.name} · ${service.externalRef ?? ''} · 点击查看监听详情`}
-                    className="flex w-full items-center gap-2 rounded-[7px] px-1 py-1 text-left transition-colors hover:bg-[#f9fafb]"
+                    className="flex w-full items-center gap-2 rounded-[7px] px-1 py-1 text-left transition-colors hover:bg-elevated"
                   >
                     <span
                       className="grid size-5 shrink-0 place-items-center rounded-[6px]"
-                      style={{ backgroundColor: '#F4F3FF', color: '#7A5AF8' }}
+                      style={{ backgroundColor: 'var(--node-service-fill)', color: 'var(--node-service-stroke)' }}
                       aria-hidden
                     >
                       <KindGlyph kind="ServiceEntity" className="size-3" />
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-[11px] leading-4 text-[#344054]">
+                    <span className="min-w-0 flex-1 truncate text-[11px] leading-4 text-ink-soft">
                       {service.name}
                     </span>
-                    <span className="tnum shrink-0 font-mono text-[9.5px] text-[#98a2b3]">
+                    <span className="tnum shrink-0 font-mono text-[9.5px] text-ink-faint">
                       {service.hostCount > 0
                         ? `${service.hostCount} 主机 · ${service.instanceCount} 实例`
                         : '未运行'}
@@ -98,7 +98,7 @@ export default function ServiceListPanel({
           )}
 
           {hidden > 0 && (
-            <p className="mt-1.5 px-1 text-[9.5px] text-[#b4bcc8]">
+            <p className="mt-1.5 px-1 text-[9.5px] text-ink-faint">
               还有 {hidden} 个服务未列出（按主机数排序后取前 {VISIBLE_LIMIT}）
             </p>
           )}

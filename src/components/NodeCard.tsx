@@ -8,6 +8,10 @@ import {
 } from '../utils/presentation';
 import { ArrowRightIcon, KindGlyph } from './icons';
 import { basename, formatCount, formatRelative } from '../utils/format';
+import { formatMbps, type NodeTelemetry } from '../utils/telemetry';
+import type { NodeStatus } from '../utils/status';
+import Sparkline from './Sparkline';
+import StatusDot from './StatusDot';
 
 export type GraphNodeHint = {
   ifaceName?: string;
@@ -27,10 +31,14 @@ type Props = {
   hint?: GraphNodeHint;
   hostStats?: HostStats;
   selected: boolean;
+  focused: boolean;
   dimmed: boolean;
   expanded: boolean;
+  status: NodeStatus;
+  telemetry?: NodeTelemetry;
   onSelect: (nodeId: string) => void;
   onExpand?: (nodeId: string) => void;
+  onFocus: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
 };
 
@@ -43,14 +51,18 @@ export default function NodeCard({
   hint,
   hostStats,
   selected,
+  focused,
   dimmed,
   expanded,
+  status,
+  telemetry,
   onSelect,
   onExpand,
+  onFocus,
   onHover,
 }: Props) {
   const className = [
-    'node-card flex h-full w-full flex-col overflow-hidden rounded-xl border bg-white text-left',
+    'node-card flex h-full w-full flex-col overflow-hidden rounded-xl border bg-surface text-left',
     selected ? 'node-card-selected' : '',
     dimmed ? 'node-card-dimmed' : '',
   ].join(' ');
@@ -63,10 +75,15 @@ export default function NodeCard({
       aria-label={`${kindLabel(node.objectKind)} ${node.label}`}
       data-node-id={node.id}
       data-selected={selected || undefined}
+      data-focused={focused || undefined}
       data-dimmed={dimmed || undefined}
       onClick={(event) => {
         event.stopPropagation();
         onSelect(node.id);
+      }}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        onFocus(node.id);
       }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
@@ -82,6 +99,9 @@ export default function NodeCard({
         hint={hint}
         hostStats={hostStats}
         expanded={expanded}
+        status={status}
+        telemetry={telemetry}
+        focused={focused}
         onExpand={onExpand ? () => onExpand(node.id) : undefined}
       />
     </div>
@@ -93,38 +113,62 @@ function CardBody({
   hint,
   hostStats,
   expanded,
+  status,
+  telemetry,
+  focused,
   onExpand,
-}: Pick<Props, 'node' | 'hint' | 'hostStats' | 'expanded'> & { onExpand?: () => void }) {
+}: Pick<Props, 'node' | 'hint' | 'hostStats' | 'expanded' | 'status' | 'telemetry' | 'focused'> & {
+  onExpand?: () => void;
+}) {
   switch (node.objectKind) {
     case 'HostInventory':
-      return <HostCard node={node} stats={hostStats} />;
+      return <HostCard node={node} stats={hostStats} status={status} telemetry={telemetry} />;
     case 'NetworkSegment':
-      return <NetworkCard node={node} hint={hint} />;
+      return <NetworkCard node={node} hint={hint} status={status} telemetry={telemetry} />;
     case 'ProcessSummary':
-      return <RuntimeCard node={node} expanded={expanded} onExpand={onExpand} />;
+      return (
+        <RuntimeCard
+          node={node}
+          expanded={expanded}
+          focused={focused}
+          status={status}
+          telemetry={telemetry}
+          onExpand={onExpand}
+        />
+      );
     case 'ProcessGroup':
-      return <ProcessGroupCard node={node} />;
+      return <ProcessGroupCard node={node} status={status} />;
     case 'ServiceEntity':
-      return <ServiceCard node={node} />;
+      return <ServiceCard node={node} status={status} />;
     case 'ContainerRuntime':
-      return <ContainerCard node={node} />;
+      return <ContainerCard node={node} status={status} />;
     case 'Subject':
-      return <SubjectCard node={node} />;
+      return <SubjectCard node={node} status={status} />;
     default:
-      return <RuntimeProcessCard node={node} />;
+      return <RuntimeProcessCard node={node} status={status} />;
   }
 }
 
 function MicroLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[9.5px] font-medium uppercase leading-none tracking-[0.08em] text-[#98a2b3]">
+    <span className="text-[9.5px] font-medium uppercase leading-none tracking-[0.08em] text-ink-faint">
       {children}
     </span>
   );
 }
 
 /** 主机是这张图的锚点：身份、系统、规模三行，别的一概不塞。 */
-function HostCard({ node, stats }: { node: HostProcessTopologyNode; stats?: HostStats }) {
+function HostCard({
+  node,
+  stats,
+  status,
+  telemetry,
+}: {
+  node: HostProcessTopologyNode;
+  stats?: HostStats;
+  status: NodeStatus;
+  telemetry?: NodeTelemetry;
+}) {
   const os = [node.properties.osName, node.properties.osVersion].filter(Boolean).join(' ');
   const arch =
     stats?.arch ?? (typeof node.properties.arch === 'string' ? node.properties.arch : '');
@@ -137,37 +181,54 @@ function HostCard({ node, stats }: { node: HostProcessTopologyNode; stats?: Host
       <div className="flex items-start gap-3">
         <span
           className="grid size-11 shrink-0 place-items-center rounded-[12px]"
-          style={{ backgroundColor: '#FFF6ED', color: '#F79009' }}
+          style={{ backgroundColor: 'var(--node-host-fill)', color: 'var(--node-host-stroke)' }}
           aria-hidden
         >
           <KindGlyph kind="HostInventory" className="size-[22px]" />
         </span>
         <div className="min-w-0 flex-1 pt-0.5">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-[14px] font-semibold leading-5 tracking-[-0.01em] text-[#101828]" title={node.label}>
+            <h3 className="truncate text-[14px] font-semibold leading-5 tracking-[-0.01em] text-ink" title={node.label}>
               {node.label}
             </h3>
-            <span className="shrink-0 rounded-[5px] bg-[#f2f4f7] px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-[#475467]">
+            <span className="shrink-0 rounded-[5px] bg-subtle px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-ink-soft">
               本机
             </span>
           </div>
-          <p className="mt-1 truncate text-[11px] leading-4 text-[#667085]">
+          <p className="mt-1 truncate text-[11px] leading-4 text-ink-mute">
             {os || '系统信息未采集'}
-            {arch ? <span className="font-mono text-[10.5px] text-[#98a2b3]"> · {arch}</span> : null}
+            {arch ? <span className="font-mono text-[10.5px] text-ink-faint"> · {arch}</span> : null}
           </p>
-          {stats?.scannedAt ? (
-            <p className="mt-1.5 flex items-center gap-1.5 text-[9.5px] leading-3 text-[#667085]">
-              <span className="size-1.5 rounded-full bg-[#12b76a]" aria-hidden />
-              盘点于 {formatRelative(stats.scannedAt)}
-            </p>
-          ) : null}
+          <p className="mt-1.5 flex items-center gap-1.5 text-[9.5px] leading-3 text-ink-mute">
+            <StatusDot tone={status.tone} label={status.label} />
+            <span>{status.label}</span>
+            {stats?.scannedAt ? (
+              <span className="text-ink-faint">· 盘点于 {formatRelative(stats.scannedAt)}</span>
+            ) : null}
+          </p>
         </div>
       </div>
 
-      <div className="mt-auto grid grid-cols-3 gap-2 border-t border-[#f2f4f7] pt-3">
-        <HostStat value={segments} label="网段" />
-        <HostStat value={processes} label="进程" />
-        <HostStat value={stats?.groups} label="分组" />
+      <div className="mt-auto">
+        <div className="grid grid-cols-3 gap-2 border-t border-line-soft pt-2.5">
+          <HostStat value={segments} label="网段" />
+          <HostStat value={processes} label="进程" />
+          <HostStat value={stats?.groups} label="分组" />
+        </div>
+        {telemetry ? (
+          <div className="mt-1.5 flex items-center gap-2">
+            <span className="text-[8.5px] uppercase tracking-[0.06em] text-ink-faint">吞吐</span>
+            <span className="tnum text-[11px] font-semibold leading-4 text-ink">
+              {formatMbps(telemetry.inMbps)}
+              <span className="ml-0.5 text-[8px] font-normal text-ink-faint">MB/s</span>
+            </span>
+            <span className="ml-auto block w-[88px] shrink-0">
+              <Sparkline values={telemetry.history ?? []} height={18} />
+            </span>
+          </div>
+        ) : (
+          <div className="mt-1.5 text-[8.5px] leading-3 text-ink-faint">遥测未接入</div>
+        )}
       </div>
     </div>
   );
@@ -185,10 +246,10 @@ function optionalNumber(properties: Record<string, unknown>, key: string): numbe
 function HostStat({ value, label }: { value?: number; label: string }) {
   return (
     <div className="min-w-0">
-      <div className="tnum truncate text-[14px] font-semibold leading-5 text-[#101828]">
+      <div className="tnum truncate text-[14px] font-semibold leading-5 text-ink">
         {formatCount(value)}
       </div>
-      <div className="mt-0.5 text-[9.5px] uppercase leading-none tracking-[0.08em] text-[#98a2b3]">
+      <div className="mt-0.5 text-[9.5px] uppercase leading-none tracking-[0.08em] text-ink-faint">
         {label}
       </div>
     </div>
@@ -199,7 +260,17 @@ function HostStat({ value, label }: { value?: number; label: string }) {
  * 网段卡片的高价值信息不是「它是一个网段」，而是「哪个接口、哪个地址段」。
  * 接口名在边上（host_network_assoc.properties.ifaceName），所以由画布作为 hint 传进来。
  */
-function NetworkCard({ node, hint }: { node: HostProcessTopologyNode; hint?: GraphNodeHint }) {
+function NetworkCard({
+  node,
+  hint,
+  status,
+  telemetry,
+}: {
+  node: HostProcessTopologyNode;
+  hint?: GraphNodeHint;
+  status: NodeStatus;
+  telemetry?: NodeTelemetry;
+}) {
   const cidr = String(node.properties.cidr ?? node.label);
   const family = formatAddressFamily(node.properties.addressFamily);
   const iface = hint?.ifaceName;
@@ -208,29 +279,43 @@ function NetworkCard({ node, hint }: { node: HostProcessTopologyNode; hint?: Gra
     <div className="flex h-full items-center gap-2.5 px-3.5">
       <span
         className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
-        style={{ backgroundColor: '#ECFDF3', color: '#12B76A' }}
+        style={{ backgroundColor: 'var(--node-network-fill)', color: 'var(--node-network-stroke)' }}
         aria-hidden
       >
         <KindGlyph kind="NetworkSegment" className="size-[16px]" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-center gap-1.5">
           <span
-            className={`truncate text-[12px] font-semibold leading-4 ${iface ? 'text-[#101828]' : 'text-[#667085]'}`}
+            className={`truncate text-[12px] font-semibold leading-4 ${iface ? 'text-ink' : 'text-ink-mute'}`}
             title={iface ?? cidr}
           >
             {iface ?? '网络接口'}
           </span>
-          {family && (
-            <span className="ml-auto shrink-0 text-[9px] font-medium uppercase leading-none tracking-[0.06em] text-[#98a2b3]">
-              {family}
-            </span>
-          )}
+          <StatusDot tone={status.tone} label={status.label} />
         </div>
-        <div className="mt-1 truncate font-mono text-[10.5px] leading-4 text-[#475467]" title={cidr}>
-          {shortCidr(cidr)}
+        <div className="mt-1 flex items-baseline gap-1.5">
+          <span className="truncate font-mono text-[10.5px] leading-4 text-ink-soft" title={cidr}>
+            {shortCidr(cidr)}
+          </span>
+          {!telemetry && family ? (
+            <span className="shrink-0 text-[8.5px] text-ink-faint">{family}</span>
+          ) : null}
         </div>
       </div>
+      {telemetry ? (
+        <div className="shrink-0 text-right leading-none">
+          <div
+            className={`tnum whitespace-nowrap text-[11px] font-semibold ${
+              telemetry.status === 'warn' ? 'text-warn-strong' : 'text-ink'
+            }`}
+          >
+            {formatMbps(telemetry.inMbps)}
+            <span className="ml-0.5 text-[8px] font-normal text-ink-faint">MB/s ↓</span>
+          </div>
+          <div className="tnum mt-1.5 text-[9px] text-ink-mute">{formatMbps(telemetry.outMbps)} ↑</div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -242,10 +327,16 @@ function NetworkCard({ node, hint }: { node: HostProcessTopologyNode; hint?: Gra
 function RuntimeCard({
   node,
   expanded,
+  focused,
+  status,
+  telemetry,
   onExpand,
 }: {
   node: HostProcessTopologyNode;
   expanded: boolean;
+  focused: boolean;
+  status: NodeStatus;
+  telemetry?: NodeTelemetry;
   onExpand?: () => void;
 }) {
   const totalProcesses = numericProperty(node.properties, 'totalProcesses');
@@ -257,46 +348,80 @@ function RuntimeCard({
       <div className="flex items-center gap-2">
         <span
           className="grid size-[26px] shrink-0 place-items-center rounded-[8px]"
-          style={{ backgroundColor: '#EEF4FF', color: '#6366F1' }}
+          style={{ backgroundColor: 'var(--node-summary-fill)', color: 'var(--node-summary-stroke)' }}
           aria-hidden
         >
           <KindGlyph kind="ProcessSummary" className="size-[15px]" />
         </span>
-        <span className="text-[12px] font-semibold leading-4 text-[#101828]">运行时</span>
-        <span className="ml-auto rounded-[5px] bg-[#f2f4f7] px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-[#475467]">
-          {expanded ? '已展开' : '可展开'}
+        <span className="text-[12px] font-semibold leading-4 text-ink">运行时</span>
+        <StatusDot tone={status.tone} label={status.label} />
+        <span
+          className={`ml-auto rounded-[5px] px-1.5 py-0.5 text-[9.5px] font-medium leading-none ${
+            focused
+              ? 'border border-brand-line bg-brand-soft text-brand-strong'
+              : 'bg-subtle text-ink-soft'
+          }`}
+        >
+          {focused ? '聚焦中' : expanded ? '已展开' : '可展开'}
         </span>
       </div>
 
       <div className="mt-3.5 flex items-end gap-4">
         <div>
-          <div className="tnum text-[26px] font-semibold leading-8 tracking-[-0.02em] text-[#101828]">
+          <div className="tnum text-[26px] font-semibold leading-8 tracking-[-0.02em] text-ink">
             {formatCount(totalProcesses)}
           </div>
           <MicroLabel>进程</MicroLabel>
         </div>
-        <div className="mb-1 h-7 w-px bg-[#eaecf0]" aria-hidden />
+        <div className="mb-1 h-7 w-px bg-line" aria-hidden />
         <div>
-          <div className="tnum text-[15px] font-semibold leading-8 text-[#344054]">
+          <div className="tnum text-[15px] font-semibold leading-8 text-ink-soft">
             {formatCount(totalPrograms)}
           </div>
           <MicroLabel>程序</MicroLabel>
         </div>
       </div>
 
-      <div className="mt-3 border-t border-[#f2f4f7] pt-2.5">
+      {telemetry?.state ? (
+        (() => {
+          const total = telemetry.state.running + telemetry.state.sleeping + telemetry.state.other || 1;
+          const pct = (value: number) => `${Math.max(0, (value / total) * 100)}%`;
+          return (
+            <>
+              <div className="mt-2.5 flex h-[5px] overflow-hidden rounded-full bg-subtle">
+                <i className="bg-ok" style={{ width: pct(telemetry.state.running) }} />
+                <i className="bg-info" style={{ width: pct(telemetry.state.sleeping) }} />
+                <i className="bg-warn" style={{ width: pct(telemetry.state.other) }} />
+              </div>
+              <div className="mt-1 flex gap-2 text-[8.5px] leading-3 text-ink-faint">
+                <span className="flex items-center gap-1">
+                  <i className="size-1 rounded-full bg-ok" /> 运行 {telemetry.state.running}
+                </span>
+                <span className="flex items-center gap-1">
+                  <i className="size-1 rounded-full bg-info" /> 休眠 {telemetry.state.sleeping}
+                </span>
+                <span className="flex items-center gap-1">
+                  <i className="size-1 rounded-full bg-warn" /> 其他 {telemetry.state.other}
+                </span>
+              </div>
+            </>
+          );
+        })()
+      ) : null}
+
+      <div className="mt-2.5 border-t border-line-soft pt-2.5">
         <MicroLabel>高频程序</MicroLabel>
         <ul className="mt-1.5 space-y-1">
           {topPrograms.map((program) => (
             <li key={program.name} className="flex items-baseline gap-2 text-[10.5px] leading-4">
-              <span className="min-w-0 flex-1 truncate text-[#344054]" title={program.name}>
+              <span className="min-w-0 flex-1 truncate text-ink-soft" title={program.name}>
                 {program.name}
               </span>
-              <span className="tnum shrink-0 text-[#98a2b3]">{program.count}</span>
+              <span className="tnum shrink-0 text-ink-faint">{program.count}</span>
             </li>
           ))}
           {topPrograms.length === 0 && (
-            <li className="text-[10.5px] leading-4 text-[#98a2b3]">暂无程序摘要</li>
+            <li className="text-[10.5px] leading-4 text-ink-faint">暂无程序摘要</li>
           )}
         </ul>
       </div>
@@ -308,7 +433,7 @@ function RuntimeCard({
           event.stopPropagation();
           onExpand?.();
         }}
-        className="mt-auto flex w-full items-center justify-between rounded-[6px] border-t border-[#f2f4f7] pt-2 text-[10px] font-medium text-[#4f46e5] transition-colors hover:text-[#4338ca]"
+        className="mt-auto flex w-full items-center justify-between rounded-[6px] border-t border-line-soft pt-2 text-[10px] font-medium text-brand transition-colors hover:text-brand-strong"
       >
         <span>{expanded ? '收起进程分组' : '展开进程分组'}</span>
         <ArrowRightIcon className="size-3.5" />
@@ -317,17 +442,17 @@ function RuntimeCard({
   );
 }
 
-function ProcessGroupCard({ node }: { node: HostProcessTopologyNode }) {
+function ProcessGroupCard({ node, status }: { node: HostProcessTopologyNode; status: NodeStatus }) {
   const isOverflow = Boolean(node.properties.collapsed) && node.properties.hiddenGroups != null;
   if (isOverflow) {
     const hiddenGroups = numericProperty(node.properties, 'hiddenGroups');
     const loading = Boolean(node.properties.fullGroupsLoading);
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-0.5 rounded-xl border border-dashed border-[#d0d5dd] bg-[#f9fafb]/90 px-3 text-center">
-        <span className="tnum text-[11px] font-medium leading-4 text-[#475467]">
+      <div className="flex h-full flex-col items-center justify-center gap-0.5 rounded-xl border border-dashed border-line-strong bg-elevated/90 px-3 text-center">
+        <span className="tnum text-[11px] font-medium leading-4 text-ink-soft">
           {loading ? '正在加载…' : `+ ${formatCount(hiddenGroups)} 个分组`}
         </span>
-        <span className="text-[9.5px] leading-3 text-[#98a2b3]">点击继续加载</span>
+        <span className="text-[9.5px] leading-3 text-ink-faint">点击继续加载</span>
       </div>
     );
   }
@@ -341,16 +466,19 @@ function ProcessGroupCard({ node }: { node: HostProcessTopologyNode }) {
     <div className="flex h-full items-center gap-2.5 px-3">
       <span
         className="grid size-[26px] shrink-0 place-items-center rounded-[8px]"
-        style={{ backgroundColor: '#F0F9FF', color: '#0BA5EC' }}
+        style={{ backgroundColor: 'var(--node-group-fill)', color: 'var(--node-group-stroke)' }}
         aria-hidden
       >
         <KindGlyph kind="ProcessGroup" className="size-[14px]" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[11.5px] font-medium leading-4 text-[#101828]" title={executable || displayName}>
-          {displayName}
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[11.5px] font-medium leading-4 text-ink" title={executable || displayName}>
+            {displayName}
+          </span>
+          <StatusDot tone={status.tone} label={status.label} />
         </div>
-        <div className="tnum mt-0.5 truncate text-[9.5px] leading-3 text-[#667085]">
+        <div className="tnum mt-0.5 truncate text-[9.5px] leading-3 text-ink-mute">
           {formatCount(processCount)} 个进程
           {memory > 0 ? ` · ${memory.toFixed(0)} MiB` : ''}
         </div>
@@ -359,26 +487,21 @@ function ProcessGroupCard({ node }: { node: HostProcessTopologyNode }) {
   );
 }
 
-function RuntimeProcessCard({ node }: { node: HostProcessTopologyNode }) {
-  const state = String(node.properties.state ?? '');
+function RuntimeProcessCard({ node, status }: { node: HostProcessTopologyNode; status: NodeStatus }) {
   const pid = node.properties.pid;
 
   return (
     <div className="flex h-full items-center gap-2 px-3">
-      <span
-        className="size-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: state && state !== '-' ? '#12B76A' : '#98a2b3' }}
-        aria-hidden
-      />
-      <span className="min-w-0 flex-1 truncate text-[10.5px] font-medium text-[#344054]" title={node.label}>
+      <StatusDot tone={status.tone} label={status.label} className="size-1.5" />
+      <span className="min-w-0 flex-1 truncate text-[10.5px] font-medium text-ink-soft" title={node.label}>
         {node.label}
       </span>
-      {pid != null && <span className="tnum shrink-0 text-[9px] text-[#98a2b3]">{String(pid)}</span>}
+      {pid != null && <span className="tnum shrink-0 text-[9px] text-ink-faint">{String(pid)}</span>}
     </div>
   );
 }
 
-function ServiceCard({ node }: { node: HostProcessTopologyNode }) {
+function ServiceCard({ node, status }: { node: HostProcessTopologyNode; status: NodeStatus }) {
   const instanceCount = numericProperty(node.properties, 'instanceCount');
   const name = String(node.properties.name ?? node.properties.serviceName ?? node.label);
   const endpoints = endpointLabels(node.properties);
@@ -391,16 +514,16 @@ function ServiceCard({ node }: { node: HostProcessTopologyNode }) {
       <div className="flex h-full items-center gap-2.5 px-3.5">
         <span
           className="grid size-[30px] shrink-0 place-items-center rounded-[9px] border border-dashed"
-          style={{ borderColor: '#D6BBFB', color: '#7A5AF8' }}
+          style={{ borderColor: 'var(--node-service-stroke)', color: 'var(--node-service-stroke)' }}
           aria-hidden
         >
           <KindGlyph kind="ServiceEntity" className="size-[16px]" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12px] font-semibold leading-4 text-[#101828]">
+          <div className="truncate text-[12px] font-semibold leading-4 text-ink">
             {name}
           </div>
-          <div className="mt-1 truncate text-[9.5px] leading-3 text-[#667085]">
+          <div className="mt-1 truncate text-[9.5px] leading-3 text-ink-mute">
             {hidden > 0 ? `共 ${total} 个服务 · 点开查看` : `共 ${total} 个服务 · 点收起`}
           </div>
         </div>
@@ -425,17 +548,20 @@ function ServiceCard({ node }: { node: HostProcessTopologyNode }) {
     <div className="flex h-full items-center gap-2.5 px-3.5">
       <span
         className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
-        style={{ backgroundColor: '#F4F3FF', color: '#7A5AF8' }}
+        style={{ backgroundColor: 'var(--node-service-fill)', color: 'var(--node-service-stroke)' }}
         aria-hidden
       >
         <KindGlyph kind="ServiceEntity" className="size-[16px]" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[12px] font-semibold leading-4 text-[#101828]" title={name}>
-          {name}
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[12px] font-semibold leading-4 text-ink" title={name}>
+            {name}
+          </span>
+          <StatusDot tone={status.tone} label={status.label} />
         </div>
         <div
-          className="mt-1 truncate font-mono text-[9.5px] leading-3 text-[#667085]"
+          className="mt-1 truncate font-mono text-[9.5px] leading-3 text-ink-mute"
           title={subtitleTitle}
         >
           {subtitle}
@@ -469,7 +595,7 @@ function endpointLabels(properties: Record<string, unknown>): EndpointLabel[] {
 }
 
 /** 容器卡：名字 + 运行时/镜像。与主机卡片同一密度，不塞 k8s 细节。 */
-function ContainerCard({ node }: { node: HostProcessTopologyNode }) {
+function ContainerCard({ node, status }: { node: HostProcessTopologyNode; status: NodeStatus }) {
   const name = String(node.properties.containerName ?? node.label);
   const runtime = String(node.properties.runtimeType ?? '');
   const image = typeof node.properties.imageRef === 'string' ? node.properties.imageRef : '';
@@ -480,17 +606,20 @@ function ContainerCard({ node }: { node: HostProcessTopologyNode }) {
     <div className="flex h-full items-center gap-2.5 px-3.5">
       <span
         className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
-        style={{ backgroundColor: '#ECFDF3', color: '#027A48' }}
+        style={{ backgroundColor: 'var(--node-container-fill)', color: 'var(--node-container-stroke)' }}
         aria-hidden
       >
         <KindGlyph kind="ContainerRuntime" className="size-[16px]" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[12px] font-semibold leading-4 text-[#101828]" title={name}>
-          {name}
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[12px] font-semibold leading-4 text-ink" title={name}>
+            {name}
+          </span>
+          <StatusDot tone={status.tone} label={status.label} />
         </div>
         <div
-          className="mt-1 truncate font-mono text-[9.5px] leading-3 text-[#667085]"
+          className="mt-1 truncate font-mono text-[9.5px] leading-3 text-ink-mute"
           title={[subtitle, runtime].filter(Boolean).join(' · ')}
         >
           {subtitle || '容器'}
@@ -500,21 +629,24 @@ function ContainerCard({ node }: { node: HostProcessTopologyNode }) {
   );
 }
 
-function SubjectCard({ node }: { node: HostProcessTopologyNode }) {
+function SubjectCard({ node, status }: { node: HostProcessTopologyNode; status: NodeStatus }) {
   const role = String(node.properties.role ?? node.properties.title ?? '');
 
   return (
     <div className="flex h-full items-center gap-2.5 px-3">
       <span
         className="grid size-[28px] shrink-0 place-items-center rounded-full"
-        style={{ backgroundColor: '#FDF2FA', color: '#EE46BC' }}
+        style={{ backgroundColor: 'var(--node-subject-fill)', color: 'var(--node-subject-stroke)' }}
         aria-hidden
       >
         <KindGlyph kind="Subject" className="size-[15px]" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[11.5px] font-medium leading-4 text-[#101828]">{node.label}</div>
-        <div className="mt-0.5 text-[9.5px] leading-3 text-[#667085]">{role || '责任人'}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[11.5px] font-medium leading-4 text-ink">{node.label}</span>
+          <StatusDot tone={status.tone} label={status.label} />
+        </div>
+        <div className="mt-0.5 text-[9.5px] leading-3 text-ink-mute">{role || '责任人'}</div>
       </div>
     </div>
   );

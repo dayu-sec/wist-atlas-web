@@ -215,6 +215,8 @@ export type AppState = {
   error: string | null;
 
   selectedNodeId: string | null;
+  /** 显式聚焦：只亮这个节点和一跳邻居，其余压暗。null = 全景。 */
+  focusNodeId: string | null;
   layerVisibility: Record<LayerKind, boolean>;
   searchQuery: string;
 };
@@ -227,6 +229,8 @@ export type AppAction =
   | { type: 'CLEAR_HOST_TOPOLOGY_UNLESS'; hostObjectId: string }
   | { type: 'FETCH_GRAPH_ERROR'; error: string }
   | { type: 'SELECT_NODE'; nodeId: string | null }
+  | { type: 'FOCUS_NODE'; nodeId: string }
+  | { type: 'CLEAR_FOCUS' }
   | { type: 'TOGGLE_LAYER'; layer: LayerKind }
   | { type: 'SET_SEARCH'; query: string };
 

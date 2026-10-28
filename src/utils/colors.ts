@@ -19,20 +19,20 @@ export type NodeStyle = {
  * 现在大面积留白交给卡片本身，颜色只出现在 28px 的图标块和一根细角标上。
  */
 export const NODE_STYLES: Record<NodeKind, NodeStyle> = {
-  HostInventory: { fill: '#FFF6ED', stroke: '#F79009', accent: '#B54708', label: '主机' },
-  NetworkSegment: { fill: '#ECFDF3', stroke: '#12B76A', accent: '#027A48', label: '网段' },
-  ProcessSummary: { fill: '#EEF4FF', stroke: '#6366F1', accent: '#4338CA', label: '进程汇总' },
-  ProcessGroup: { fill: '#F0F9FF', stroke: '#0BA5EC', accent: '#026AA2', label: '进程分组' },
-  ProcessRuntime: { fill: '#F8FAFC', stroke: '#98A2B3', accent: '#475467', label: '进程' },
-  ServiceEntity: { fill: '#F4F3FF', stroke: '#7A5AF8', accent: '#5925DC', label: '服务' },
-  ServiceInstance: { fill: '#F9F5FF', stroke: '#9E77ED', accent: '#6941C6', label: '服务实例' },
-  ContainerRuntime: { fill: '#ECFDF3', stroke: '#12B76A', accent: '#027A48', label: '容器' },
-  Subject: { fill: '#FDF2FA', stroke: '#EE46BC', accent: '#C11574', label: '责任人' },
+  HostInventory: { fill: 'var(--node-host-fill)', stroke: 'var(--node-host-stroke)', accent: 'var(--node-host-accent)', label: '主机' },
+  NetworkSegment: { fill: 'var(--node-network-fill)', stroke: 'var(--node-network-stroke)', accent: 'var(--node-network-accent)', label: '网段' },
+  ProcessSummary: { fill: 'var(--node-summary-fill)', stroke: 'var(--node-summary-stroke)', accent: 'var(--node-summary-accent)', label: '进程汇总' },
+  ProcessGroup: { fill: 'var(--node-group-fill)', stroke: 'var(--node-group-stroke)', accent: 'var(--node-group-accent)', label: '进程分组' },
+  ProcessRuntime: { fill: 'var(--node-process-fill)', stroke: 'var(--node-process-stroke)', accent: 'var(--node-process-accent)', label: '进程' },
+  ServiceEntity: { fill: 'var(--node-service-fill)', stroke: 'var(--node-service-stroke)', accent: 'var(--node-service-accent)', label: '服务' },
+  ServiceInstance: { fill: 'var(--node-instance-fill)', stroke: 'var(--node-instance-stroke)', accent: 'var(--node-instance-accent)', label: '服务实例' },
+  ContainerRuntime: { fill: 'var(--node-container-fill)', stroke: 'var(--node-container-stroke)', accent: 'var(--node-container-accent)', label: '容器' },
+  Subject: { fill: 'var(--node-subject-fill)', stroke: 'var(--node-subject-stroke)', accent: 'var(--node-subject-accent)', label: '责任人' },
 };
 
 export const LAYER_COLORS: Record<LayerKind, { bg: string; border: string; label: string; short: string }> = {
-  resource: { bg: '#ECFDF3', border: '#12B76A', label: '资源目录', short: '资源' },
-  governance: { bg: '#F5F3FF', border: '#8B5CF6', label: '责任治理', short: '治理' },
+  resource: { bg: 'var(--color-ok-soft)', border: 'var(--color-ok)', label: '资源目录', short: '资源' },
+  governance: { bg: 'var(--color-brand-soft)', border: 'var(--color-brand)', label: '责任治理', short: '治理' },
 };
 
 export function nodeKindToLayer(kind: NodeKind): LayerKind {

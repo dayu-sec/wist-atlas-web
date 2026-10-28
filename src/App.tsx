@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAppState } from './hooks/useAppState';
+import { useTheme } from './hooks/useTheme';
 import AppHeader from './components/AppHeader';
 import TopologyCanvas from './components/TopologyCanvas';
 import CanvasToolbar from './components/CanvasToolbar';
@@ -8,8 +9,11 @@ import HostSummaryCard from './components/HostSummaryCard';
 import StatusBar from './components/StatusBar';
 import NodeDetailPanel from './components/NodeDetailPanel';
 import ServiceListPanel from './components/ServiceListPanel';
+import FocusBar from './components/FocusBar';
 import { ChevronRight } from './components/icons';
 import { buildSearchIndex, countMatches } from './utils/search';
+import { buildTelemetry } from './utils/telemetry';
+import { countHealth, freshnessStatus, resolveNodeStatus } from './utils/status';
 import {
   fetchHostProcessGroupsPage,
   fetchHostProcessOverview,
@@ -48,6 +52,24 @@ const USE_FIXTURE = import.meta.env.VITE_USE_FIXTURE === '1';
 
 export default function App() {
   const [state, dispatch] = useAppState();
+  const { theme, toggleTheme } = useTheme();
+  const [demoTelemetry, setDemoTelemetry] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem('wist-atlas-demo');
+      if (stored === '1' || stored === '0') return stored === '1';
+    } catch {
+      // 忽略隐私模式
+    }
+    return import.meta.env.DEV;
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('wist-atlas-demo', demoTelemetry ? '1' : '0');
+    } catch {
+      // 忽略
+    }
+  }, [demoTelemetry]);
   const [hostId, setHostId] = useState('');
   const [hostQueryId, setHostQueryId] = useState('');
   const [hosts, setHosts] = useState<HostSummaryDto[]>([]);
@@ -219,6 +241,8 @@ export default function App() {
   useEffect(() => {
     if (!serviceListOpen || services) return;
     let cancelled = false;
+    // 服务清单是懒加载的外部数据，进入 loading 是这次请求的同步起点。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setServiceListLoading(true);
     setServiceListError(null);
     fetchServices().then((res) => {
@@ -433,14 +457,46 @@ export default function App() {
     }));
   }, [state.hostTopology]);
 
-  // Esc 收起详情面板：图上的选中态和右侧抽屉必须能一键退出来。
+  const scannedAt = state.hostTopology?.generatedAt ?? displayGraph?.metadata?.queryTime ?? null;
+  const telemetry = useMemo(
+    () => buildTelemetry(displayGraph, demoTelemetry),
+    [displayGraph, demoTelemetry],
+  );
+  const statusOptions = useMemo(() => ({ scannedAt, telemetry }), [scannedAt, telemetry]);
+  const health = useMemo(
+    () => countHealth(displayGraph, statusOptions),
+    [displayGraph, statusOptions],
+  );
+  const hostStatus = primaryHostNode
+    ? resolveNodeStatus(primaryHostNode, statusOptions)
+    : freshnessStatus(scannedAt);
+  const selectedStatus = selectedNode ? resolveNodeStatus(selectedNode, statusOptions) : null;
+  const selectedTelemetry = selectedNode ? telemetry.nodes[selectedNode.id] : undefined;
+  const focusNode = state.focusNodeId
+    ? displayGraph?.nodes.find((node) => node.id === state.focusNodeId) ?? null
+    : null;
+  const focusLabel =
+    focusNode?.objectKind === 'ProcessSummary' ? '运行时' : focusNode?.label ?? '';
+
+  const handleFocusNode = useCallback(
+    (nodeId: string) => dispatch({ type: 'FOCUS_NODE', nodeId }),
+    [dispatch],
+  );
+  const handleExitFocus = useCallback(() => dispatch({ type: 'CLEAR_FOCUS' }), [dispatch]);
+
+  // Esc：有聚焦先退聚焦，否则收起详情面板。
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') dispatch({ type: 'SELECT_NODE', nodeId: null });
+      if (event.key !== 'Escape') return;
+      if (state.focusNodeId) {
+        dispatch({ type: 'CLEAR_FOCUS' });
+      } else {
+        dispatch({ type: 'SELECT_NODE', nodeId: null });
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [dispatch]);
+  }, [dispatch, state.focusNodeId]);
 
   const segmentCount = state.hostTopology?.networkSegments.length
     ?? graphNodes.filter((node) => node.objectKind === 'NetworkSegment').length;
@@ -465,13 +521,19 @@ export default function App() {
         hosts={hosts}
         selectedHostId={hostId}
         onSelectHost={(nextHostId) => setHostId(nextHostId)}
-        scannedAt={state.hostTopology?.generatedAt ?? displayGraph?.metadata?.queryTime ?? null}
+        scannedAt={scannedAt}
         loading={state.loading}
         onRefresh={loadData}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        hostStatus={hostStatus}
+        health={health}
+        demo={demoTelemetry}
+        onToggleDemo={() => setDemoTelemetry((current) => !current)}
       />
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[304px] shrink-0 flex-col overflow-y-auto border-r border-line bg-surface">
+        <aside className="shell flex w-[304px] shrink-0 flex-col overflow-y-auto border-r border-line">
           <HostSummaryCard
             host={railHost}
             segmentCount={segmentCount}
@@ -483,6 +545,9 @@ export default function App() {
             loading={state.loading}
             onOpenServices={toggleServiceList}
             containerCount={state.hostTopology?.containers?.length ?? 0}
+            status={hostStatus}
+            telemetry={telemetry.host}
+            demo={demoTelemetry}
           />
 
           {serviceListOpen && (
@@ -500,7 +565,7 @@ export default function App() {
           <LegendCard kinds={presentKinds} />
 
           <details className="group border-b border-line px-4 py-3.5">
-            <summary className="flex cursor-pointer list-none items-center gap-1 text-[10.5px] text-[#98a2b3] transition-colors hover:text-[#475467]">
+            <summary className="flex cursor-pointer list-none items-center gap-1 text-[10.5px] text-ink-faint transition-colors hover:text-ink-soft">
               <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
               按对象 ID 查询
             </summary>
@@ -513,7 +578,7 @@ export default function App() {
                 }}
                 className="space-y-1.5"
               >
-                <label className="block text-[9.5px] text-[#98a2b3]" htmlFor="host-id-input">
+                <label className="block text-[9.5px] text-ink-faint" htmlFor="host-id-input">
                   主机对象 ID
                 </label>
                 <div className="flex gap-1.5">
@@ -523,11 +588,11 @@ export default function App() {
                     placeholder="UUID"
                     value={hostQueryId}
                     onChange={(e) => setHostQueryId(e.target.value)}
-                    className="h-7 min-w-0 flex-1 rounded-[7px] border border-line bg-[#f9fafb] px-2 font-mono text-[10.5px] text-ink placeholder:text-[#b4bcc8] focus:border-brand focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/15"
+                    className="h-7 min-w-0 flex-1 rounded-[7px] border border-line bg-elevated px-2 font-mono text-[10.5px] text-ink placeholder:text-ink-faint focus:border-brand focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/15"
                   />
                   <button
                     type="submit"
-                    className="h-7 shrink-0 rounded-[7px] bg-ink px-2.5 text-[10.5px] font-medium text-white transition-colors hover:bg-[#344054]"
+                    className="h-7 shrink-0 rounded-[7px] bg-ink px-2.5 text-[10.5px] font-medium text-white transition-colors hover:bg-brand-strong"
                   >
                     查询
                   </button>
@@ -541,7 +606,7 @@ export default function App() {
                 }}
                 className="space-y-1.5"
               >
-                <label className="block text-[9.5px] text-[#98a2b3]" htmlFor="network-id-input">
+                <label className="block text-[9.5px] text-ink-faint" htmlFor="network-id-input">
                   网段对象 ID
                 </label>
                 <div className="flex gap-1.5">
@@ -551,11 +616,11 @@ export default function App() {
                     placeholder="UUID"
                     value={networkId}
                     onChange={(event) => setNetworkId(event.target.value)}
-                    className="h-7 min-w-0 flex-1 rounded-[7px] border border-line bg-[#f9fafb] px-2 font-mono text-[10.5px] text-ink placeholder:text-[#b4bcc8] focus:border-brand focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/15"
+                    className="h-7 min-w-0 flex-1 rounded-[7px] border border-line bg-elevated px-2 font-mono text-[10.5px] text-ink placeholder:text-ink-faint focus:border-brand focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/15"
                   />
                   <button
                     type="submit"
-                    className="h-7 shrink-0 rounded-[7px] border border-line bg-surface px-2.5 text-[10.5px] font-medium text-[#475467] transition-colors hover:border-[#d0d5dd] hover:bg-[#f9fafb]"
+                    className="h-7 shrink-0 rounded-[7px] border border-line bg-surface px-2.5 text-[10.5px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:bg-elevated"
                   >
                     查询
                   </button>
@@ -569,7 +634,7 @@ export default function App() {
                 }}
                 className="space-y-1.5"
               >
-                <label className="block text-[9.5px] text-[#98a2b3]" htmlFor="service-id-input">
+                <label className="block text-[9.5px] text-ink-faint" htmlFor="service-id-input">
                   服务对象 ID
                 </label>
                 <div className="flex gap-1.5">
@@ -579,11 +644,11 @@ export default function App() {
                     placeholder="UUID"
                     value={serviceId}
                     onChange={(event) => setServiceId(event.target.value)}
-                    className="h-7 min-w-0 flex-1 rounded-[7px] border border-line bg-[#f9fafb] px-2 font-mono text-[10.5px] text-ink placeholder:text-[#b4bcc8] focus:border-brand focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/15"
+                    className="h-7 min-w-0 flex-1 rounded-[7px] border border-line bg-elevated px-2 font-mono text-[10.5px] text-ink placeholder:text-ink-faint focus:border-brand focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/15"
                   />
                   <button
                     type="submit"
-                    className="h-7 shrink-0 rounded-[7px] border border-line bg-surface px-2.5 text-[10.5px] font-medium text-[#475467] transition-colors hover:border-[#d0d5dd] hover:bg-[#f9fafb]"
+                    className="h-7 shrink-0 rounded-[7px] border border-line bg-surface px-2.5 text-[10.5px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:bg-elevated"
                   >
                     查询
                   </button>
@@ -593,7 +658,7 @@ export default function App() {
           </details>
 
           <details className="group px-4 py-3.5">
-            <summary className="flex cursor-pointer list-none items-center gap-1 text-[10.5px] text-[#98a2b3] transition-colors hover:text-[#475467]">
+            <summary className="flex cursor-pointer list-none items-center gap-1 text-[10.5px] text-ink-faint transition-colors hover:text-ink-soft">
               <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
               对象标识
             </summary>
@@ -603,12 +668,13 @@ export default function App() {
             </div>
           </details>
 
-          <div className="mt-auto px-4 py-4 text-[10px] leading-4 text-[#b4bcc8]">
+          <div className="mt-auto px-4 py-4 text-[10px] leading-4 text-ink-faint">
             只读视图 · 数据来自最近一次主机盘点
           </div>
         </aside>
 
-        <main className="relative min-w-0 flex-1">
+        <main className="relative flex min-w-0 flex-1">
+          <div className="relative min-w-0 flex-1">
           <TopologyCanvas
             graph={displayGraph}
             selectedNodeId={state.selectedNodeId}
@@ -616,9 +682,13 @@ export default function App() {
             onExpandNode={handleExpandNode}
             searchQuery={state.searchQuery}
             layerVisibility={state.layerVisibility}
-            scannedAt={state.hostTopology?.generatedAt ?? displayGraph?.metadata?.queryTime ?? null}
+            scannedAt={scannedAt}
             hostArch={state.hostTopology?.host.arch ?? null}
             loading={state.loading}
+            theme={theme}
+            telemetry={telemetry}
+            focusNodeId={state.focusNodeId}
+            onFocusNode={handleFocusNode}
           />
 
           <div className="pointer-events-none absolute left-4 top-4 z-20">
@@ -632,6 +702,28 @@ export default function App() {
             />
           </div>
 
+          {focusNode && (
+            <div className="pointer-events-none absolute left-4 top-[62px] z-20">
+              <FocusBar label={focusLabel} onExit={handleExitFocus} />
+            </div>
+          )}
+
+          {state.error && (
+            <div className="absolute bottom-4 left-4 z-30 flex max-w-md items-start gap-2 rounded-[10px] border border-danger-line bg-danger-soft px-3 py-2 text-[11px] text-danger-strong shadow-[0_8px_24px_-12px_rgba(16,24,40,0.25)]">
+              <span className="mt-px shrink-0 font-semibold">出错</span>
+              <span className="min-w-0 break-all">{state.error}</span>
+              <button
+                type="button"
+                onClick={() => dispatch({ type: 'FETCH_GRAPH_ERROR', error: '' })}
+                className="ml-auto shrink-0 rounded px-1 text-danger hover:text-danger-strong"
+                aria-label="关闭错误提示"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          </div>
+
           <NodeDetailPanel
             node={selectedNode}
             graph={displayGraph}
@@ -643,22 +735,14 @@ export default function App() {
             onOpenService={openService}
             onFocusHost={(hostObjectId) => setHostId(hostObjectId)}
             onExpand={handleExpandNode}
+            status={selectedStatus}
+            telemetry={selectedTelemetry}
+            demo={demoTelemetry}
+            focused={Boolean(selectedNode && state.focusNodeId === selectedNode.id)}
+            onFocus={() => selectedNode && handleFocusNode(selectedNode.id)}
+            onExitFocus={handleExitFocus}
           />
 
-          {state.error && (
-            <div className="absolute bottom-4 left-4 z-30 flex max-w-md items-start gap-2 rounded-[10px] border border-[#fecdca] bg-[#fffbfa] px-3 py-2 text-[11px] text-[#b42318] shadow-[0_8px_24px_-12px_rgba(16,24,40,0.25)]">
-              <span className="mt-px shrink-0 font-semibold">出错</span>
-              <span className="min-w-0 break-all">{state.error}</span>
-              <button
-                type="button"
-                onClick={() => dispatch({ type: 'FETCH_GRAPH_ERROR', error: '' })}
-                className="ml-auto shrink-0 rounded px-1 text-[#f97066] hover:text-[#b42318]"
-                aria-label="关闭错误提示"
-              >
-                ✕
-              </button>
-            </div>
-          )}
         </main>
       </div>
 
@@ -671,6 +755,7 @@ export default function App() {
         edgeCount={graphEdges.length}
         queryTime={displayGraph?.metadata?.queryTime ?? null}
         loading={state.loading}
+        demo={demoTelemetry}
       />
     </div>
   );
@@ -680,8 +765,8 @@ function IdRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
   return (
     <div className="text-[10px]">
-      <div className="text-[#98a2b3]">{label}</div>
-      <div className="mt-0.5 truncate font-mono text-[9.5px] leading-4 text-[#667085]" title={value}>
+      <div className="text-ink-faint">{label}</div>
+      <div className="mt-0.5 truncate font-mono text-[9.5px] leading-4 text-ink-mute" title={value}>
         {value}
       </div>
     </div>

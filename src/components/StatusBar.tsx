@@ -9,6 +9,7 @@ type Props = {
   edgeCount: number;
   queryTime?: string | null;
   loading: boolean;
+  demo: boolean;
 };
 
 /** 底部状态栏：一行说完「这份图覆盖了什么、什么时候查的」。 */
@@ -21,12 +22,13 @@ export default function StatusBar({
   edgeCount,
   queryTime,
   loading,
+  demo,
 }: Props) {
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-3 border-t border-line bg-surface px-4 text-[10.5px] text-[#98a2b3]">
+    <footer className="shell flex h-7 shrink-0 items-center gap-3 border-t border-line px-4 text-[10.5px] text-ink-faint">
       <span className="flex items-center gap-1.5">
         <span
-          className={`size-1.5 rounded-full ${loading ? 'animate-pulse bg-[#f79009]' : 'bg-[#12b76a]'}`}
+          className={`size-1.5 rounded-full ${loading ? 'animate-pulse bg-warn' : 'bg-ok'}`}
           aria-hidden
         />
         {loading ? '同步中' : '数据就绪'}
@@ -34,7 +36,7 @@ export default function StatusBar({
 
       <span className="h-3 w-px bg-line" aria-hidden />
 
-      <span className="tnum text-[#667085]">
+      <span className="tnum text-ink-mute">
         {formatCount(hostCount)} 主机 · {formatCount(segmentCount)} 网段 ·{' '}
         {formatCount(processCount)} 进程 · {formatCount(groupCount)} 分组
       </span>
@@ -46,6 +48,10 @@ export default function StatusBar({
       <span className="h-3 w-px bg-line" aria-hidden />
 
       <span className="tnum">{queryTime ? `查询于 ${formatClock(queryTime)}` : '未查询'}</span>
+      <span className="h-3 w-px bg-line" aria-hidden />
+      <span className={demo ? 'text-warn-strong' : 'text-ink-faint'}>
+        {demo ? '示例流量 · 非真实遥测' : '真实数据'}
+      </span>
     </footer>
   );
 }
