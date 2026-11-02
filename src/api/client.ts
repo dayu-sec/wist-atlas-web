@@ -8,7 +8,9 @@ import type {
   ServiceListDto,
 } from '../types/domain';
 
-const BASE = '/api';
+// API 前缀跟随页面 base：挂在根时是 `/api`，挂在 `/atlas/` 下时是 `/atlas/api`。
+// 子路径部署由宿主反代（console-web 的 `location /atlas/`）把前缀剥掉。
+const BASE = new URL('api', document.baseURI).pathname.replace(/\/$/, '');
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
   try {

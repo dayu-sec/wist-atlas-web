@@ -70,3 +70,19 @@ public/
 ```
 
 API 契约以后端仓的 [`doc/frontend/api-contract.md`](https://github.com/dayu-sec/wist-atlas/blob/main/doc/frontend/api-contract.md) 为准。
+
+## 挂在子路径（`/atlas/`）
+
+本前端可以整站在子路径下提供（计算区运维台 `wist-console-web` 就是这么嵌的）：
+
+- 构建用相对资源路径（`vite.config.ts` 的 `base: './'`），同一份产物既能挂根也能挂子路径；
+- API 前缀按 `document.baseURI` 推导：挂根是 `/api`，挂 `/atlas/` 时是 `/atlas/api`；
+- 宿主（例如 console-web 的 nginx）负责把 `/atlas/` 前缀剥掉再转给本容器：
+
+```nginx
+location /atlas/ {
+    proxy_pass http://atlas-web:80/;
+}
+```
+
+挂在子路径时，入口 URL 必须带尾斜杠（`/atlas/`）—— `document.baseURI` 才能解析成 `/atlas/api`。

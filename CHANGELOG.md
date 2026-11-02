@@ -3,6 +3,15 @@
 本文件记录 `wist-atlas-web` 的所有重要变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.1.1] - 2026-11-02
+
+### 变更
+
+- 支持挂在子路径（`/atlas/`）：构建改为相对资源路径（`base: './'`），
+  API 前缀由 `document.baseURI` 推导，不再写死 `/api`。
+  用途是嵌进计算区运维台（`wist-console-web`）的「资产拓扑」页。
+- `index.html` 的 favicon 改为相对路径；根路径部署行为不变。
+
 ## [0.1.0] - 2026-10-28
 
 ### 新增
