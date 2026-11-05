@@ -3,6 +3,15 @@
 本文件记录 `wist-atlas-web` 的所有重要变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.1.2] - 2026-11-05
+
+### 变更
+
+- 嵌在星象台（console-web 的 `/atlas/`）里时，API 请求会带上 `Authorization: Bearer`：
+  令牌读宿主页同一个 `sessionStorage` 键（`wist.console.token`）。同源 iframe 共享
+  sessionStorage，所以不需要把令牌传参、也不需要 cookie。
+- 独立部署（`wist-atlas-stack`）时没有这个键，行为与之前完全一致（不带头）。
+
 ## [0.1.1] - 2026-11-02
 
 ### 变更

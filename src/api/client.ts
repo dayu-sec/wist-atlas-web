@@ -12,6 +12,16 @@ import type {
 // 子路径部署由宿主反代（console-web 的 `location /atlas/`）把前缀剥掉。
 const BASE = new URL('api', document.baseURI).pathname.replace(/\/$/, '');
 
+/** 嵌在星象台里时，用宿主页同一个 sessionStorage 键的访问令牌。 */
+function bearerHeader(): Record<string, string> {
+  try {
+    const token = window.sessionStorage.getItem('wist.console.token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 async function get<T>(path: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
   try {
     const url = new URL(`${BASE}${path}`, window.location.origin);
@@ -20,7 +30,12 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<Ap
         url.searchParams.set(k, v);
       }
     }
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), {
+      // 星象台的 `/atlas/` 是**同源 iframe**，拿不到宿主页面的 JS 变量，
+      // 但同源共享 `sessionStorage`：读同一个键，把令牌带到 BFF。
+      // 独立部署（wist-atlas-stack）没有这个键，就不带头 —— 行为与以前一致。
+      headers: bearerHeader(),
+    });
     if (!res.ok) {
       return { status: 'error', code: String(res.status), message: res.statusText };
     }
