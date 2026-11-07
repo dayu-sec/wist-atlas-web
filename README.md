@@ -23,7 +23,7 @@
 依赖形态是 **GitHub Release 里的 tgz 直链**，不是 `github:` 简写：
 
 ```json
-"@dayu-sec/wist-atlas-graph": "https://github.com/dayu-sec/wist-atlas-graph/releases/download/v0.2.0/dayu-sec-wist-atlas-graph-0.2.0.tgz"
+"@dayu-sec/wist-atlas-graph": "https://github.com/dayu-sec/wist-atlas-graph/releases/download/v0.3.1/dayu-sec-wist-atlas-graph-0.3.1.tgz"
 ```
 
 镜像是 `node:24-alpine`，构建阶段没有 git / ssh 凭据，`github:` 简写会在 `npm ci` 阶段拉不下来；
