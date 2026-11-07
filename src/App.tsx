@@ -94,7 +94,8 @@ export default function App() {
         host={railHost}
         hostName={railHost?.hostName ?? '未选择主机'}
         hosts={view.hosts}
-        selectedHostId={view.hostId}
+        // 多主机图就是总览：切换器如实显示「全部主机」，而不是第一台。
+        selectedHostId={view.hostCount > 1 ? '' : view.hostId}
         onSelectHost={(nextHostId) => view.setHostId(nextHostId)}
         scannedAt={view.scannedAt}
         loading={view.loading}
