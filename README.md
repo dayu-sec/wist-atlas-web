@@ -18,12 +18,12 @@
 领域类型、版式算法（聚焦剖面 / 运行时网格 / 服务焦点图）、节点状态口径、画布显示装配
 （TopN / 溢出节点 / 单进程折叠）以及只读 API 客户端，都在
 [`@dayu-sec/wist-atlas-graph`](https://github.com/dayu-sec/wist-atlas-graph)；`wist-field-web`
-的「资产拓扑」页用的是同一份。本仓只保留画布组件、面板与页面外壳。
+的「资产拓扑」页用的是同一份。本仓只保留页面外壳（顶栏 / 左栏 / 状态栏）与主题。
 
 依赖形态是 **GitHub Release 里的 tgz 直链**，不是 `github:` 简写：
 
 ```json
-"@dayu-sec/wist-atlas-graph": "https://github.com/dayu-sec/wist-atlas-graph/releases/download/v0.1.0/dayu-sec-wist-atlas-graph-0.1.0.tgz"
+"@dayu-sec/wist-atlas-graph": "https://github.com/dayu-sec/wist-atlas-graph/releases/download/v0.2.0/dayu-sec-wist-atlas-graph-0.2.0.tgz"
 ```
 
 镜像是 `node:24-alpine`，构建阶段没有 git / ssh 凭据，`github:` 简写会在 `npm ci` 阶段拉不下来；
@@ -77,9 +77,9 @@ docker run --rm -p 8080:80 \
 
 ```text
 src/
-  components/  画布、面板、卡片
-  hooks/       状态与主题
-  utils/       画布专属的 cytoscape 元素构建（graph-to-cy）
+  components/  页面外壳：顶栏、左栏资产卡、图例、服务清单、状态栏
+  hooks/       主题
+  App.tsx      数据装配（graph / 资产卡 / 展开状态）
 public/
   fixtures/    零后端依赖的示例数据
 ```

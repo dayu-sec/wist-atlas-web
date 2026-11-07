@@ -2,9 +2,8 @@ import type { HostTopologyHost } from '@dayu-sec/wist-atlas-graph';
 import { formatCount, formatRelative } from '@dayu-sec/wist-atlas-graph';
 import { formatMbps, type HostTelemetry } from '@dayu-sec/wist-atlas-graph';
 import type { NodeStatus } from '@dayu-sec/wist-atlas-graph';
-import { HostGlyph } from './icons';
-import Sparkline from './Sparkline';
-import StatusDot from './StatusDot';
+import { HostGlyph } from '@dayu-sec/wist-atlas-graph/ui';
+import { Sparkline, StatusDot } from '@dayu-sec/wist-atlas-graph/ui';
 
 export type TopGroupSummary = { name: string; count: number };
 

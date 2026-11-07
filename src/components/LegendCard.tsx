@@ -1,6 +1,6 @@
 import type { NodeKind } from '@dayu-sec/wist-atlas-graph';
 import { getNodeStyle } from '@dayu-sec/wist-atlas-graph';
-import { KindGlyph } from './icons';
+import { KindGlyph } from '@dayu-sec/wist-atlas-graph/ui';
 import { STATUS_LABELS, type StatusTone } from '@dayu-sec/wist-atlas-graph';
 
 type Props = {

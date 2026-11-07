@@ -225,70 +225,16 @@ body {
 }
 
 /* 画布：浅色是极淡点阵；深色是深海军蓝 + 中心柔光。 */
-.atlas-canvas {
-  background-color: var(--color-canvas);
-  background-image: radial-gradient(circle, var(--canvas-dot) 0.7px, transparent 0.8px);
-  background-size: 22px 22px;
-  background-position: -1px -1px;
-}
 
-[data-theme="dark"] .atlas-canvas {
-  background-image:
-    radial-gradient(95% 70% at 52% 42%, rgba(35, 53, 84, 0.55) 0%, rgba(10, 18, 32, 0.9) 56%, #070d18 100%),
-    radial-gradient(circle, var(--canvas-dot) 0.7px, transparent 0.8px);
-  background-size: auto, 22px 22px;
-}
 
 /* 画布上的节点卡。样式集中在 CSS 里，是因为它有 9 种内容变体，
    但「卡片的物理规则」（描边、阴影、选中、聚焦、变淡）必须完全一致。 */
-.node-card {
-  background: var(--card-bg);
-  border-color: var(--card-border);
-  box-shadow: var(--card-shadow);
-  transition:
-    border-color 140ms ease,
-    box-shadow 140ms ease,
-    opacity 140ms ease,
-    transform 140ms ease;
-  cursor: pointer;
-}
 
-.node-card::before {
-  content: "";
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  top: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--card-highlight), transparent);
-  pointer-events: none;
-}
 
-.node-card:hover {
-  border-color: var(--card-border-hover);
-  box-shadow: var(--card-shadow-hover);
-  transform: translateY(-1px);
-}
 
-.node-card:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-brand) 55%, transparent);
-  outline-offset: 2px;
-}
 
-.node-card-selected {
-  border-color: var(--color-brand);
-  box-shadow: var(--card-shadow-selected);
-}
 
-.node-card[data-focused="true"] {
-  border-color: var(--color-brand);
-  box-shadow: var(--card-shadow-focused);
-}
 
-.node-card-dimmed {
-  opacity: var(--muted-opacity);
-  filter: saturate(0.7);
-}
 
 /* 顶栏 / 左栏 / 检查器 / 状态栏的外壳 */
 .shell {
@@ -308,12 +254,6 @@ body {
 }
 
 /* 浮在画布上的工具条 / 聚焦条 */
-.floating-bar {
-  background: var(--float-bg);
-  border: 1px solid var(--float-border);
-  box-shadow: var(--float-shadow);
-  backdrop-filter: blur(8px);
-}
 
 /* 状态点：颜色 + 一圈光晕，浅/深色都由令牌决定 */
 .dot {
@@ -345,6 +285,11 @@ body {
 }
 
 /* 小图表：折线用品牌色，填充用同色低透明度 */
+
+
+
+/* 左栏的吞吐卡片也用 Sparkline：它属于 app 外壳，不在画布作用域内，
+   所以这份样式留在本仓（画布内的同一组件由 @dayu-sec/wist-atlas-graph/styles.css 提供）。 */
 .sparkline {
   display: block;
   width: 100%;

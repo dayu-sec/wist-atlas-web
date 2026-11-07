@@ -1,16 +1,19 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useAppState } from './hooks/useAppState';
 import { useTheme } from './hooks/useTheme';
+import {
+  CanvasToolbar,
+  ChevronRight,
+  FocusBar,
+  GraphRoot,
+  NodeDetailPanel,
+  TopologyCanvas,
+  useAppState,
+} from '@dayu-sec/wist-atlas-graph/ui';
 import AppHeader from './components/AppHeader';
-import TopologyCanvas from './components/TopologyCanvas';
-import CanvasToolbar from './components/CanvasToolbar';
 import LegendCard from './components/LegendCard';
 import HostSummaryCard from './components/HostSummaryCard';
 import StatusBar from './components/StatusBar';
-import NodeDetailPanel from './components/NodeDetailPanel';
 import ServiceListPanel from './components/ServiceListPanel';
-import FocusBar from './components/FocusBar';
-import { ChevronRight } from './components/icons';
 import {
   buildDisplayGraph,
   getProcessViewMode,
@@ -672,7 +675,7 @@ export default function App() {
           </div>
         </aside>
 
-        <main className="relative flex min-w-0 flex-1">
+        <GraphRoot theme={theme} className="relative flex min-w-0 flex-1">
           <div className="relative min-w-0 flex-1">
           <TopologyCanvas
             graph={displayGraph}
@@ -742,7 +745,7 @@ export default function App() {
             onExitFocus={handleExitFocus}
           />
 
-        </main>
+        </GraphRoot>
       </div>
 
       <StatusBar

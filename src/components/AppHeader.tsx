@@ -1,7 +1,7 @@
 import type { HostSummaryDto, HostTopologyHost } from '@dayu-sec/wist-atlas-graph';
 import type { HealthCounts, NodeStatus } from '@dayu-sec/wist-atlas-graph';
 import { formatRelative } from '@dayu-sec/wist-atlas-graph';
-import { BrandMark, ChevronRight, MoonIcon, RefreshIcon, SunIcon } from './icons';
+import { BrandMark, ChevronRight, MoonIcon, RefreshIcon, SunIcon } from '@dayu-sec/wist-atlas-graph/ui';
 
 type Props = {
   host: HostTopologyHost | null;

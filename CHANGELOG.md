@@ -13,6 +13,11 @@
   目的是让 `wist-field-web` 的「资产拓扑」页复用同一张画布，而不是 iframe 嵌入整个应用。
 - API 客户端改为 `createAtlasClient({ baseUrl, headers, fetchImpl })`；不传参时行为与 0.1.3 一致
   （前缀跟随 `document.baseURI`，令牌读同源 `sessionStorage['wist.console.token']`）。
+- **画布层也进了包**（`@dayu-sec/wist-atlas-graph@0.2.0` 的 `./ui`）：`TopologyCanvas`、
+  `NodeCard`、`NodeDetailPanel`、`CanvasToolbar`、`FocusBar`、`StatusDot`、`Sparkline`、
+  图标与 `useAppState` 全部删除本地副本，改为从包引入；画布视觉统一由 `GraphRoot` +
+  `styles.css` 提供（Tailwind 在包内编译并作用域化，本仓不再为画布维护样式）。
+  迁移后用同一份 fixture 做像素比对：与迁移前 0 差异。
 - 依赖形态用 GitHub Release 的 tgz 直链（构建镜像里没有 git/ssh，`github:` 简写在
   `node:24-alpine` 上拉不下来）。
 

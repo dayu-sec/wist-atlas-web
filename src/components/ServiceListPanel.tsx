@@ -1,6 +1,6 @@
 import type { ServiceSummaryDto } from '@dayu-sec/wist-atlas-graph';
 import { formatCount } from '@dayu-sec/wist-atlas-graph';
-import { ChevronRight, KindGlyph } from './icons';
+import { ChevronRight, KindGlyph } from '@dayu-sec/wist-atlas-graph/ui';
 
 type Props = {
   services: ServiceSummaryDto[] | null;
