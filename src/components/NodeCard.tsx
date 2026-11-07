@@ -1,15 +1,15 @@
-import type { HostProcessTopologyNode } from '../types/domain';
+import type { HostProcessTopologyNode } from '@dayu-sec/wist-atlas-graph';
 import {
   formatAddressFamily,
   kindLabel,
   numericProperty,
   parseTopPrograms,
   shortCidr,
-} from '../utils/presentation';
+} from '@dayu-sec/wist-atlas-graph';
 import { ArrowRightIcon, KindGlyph } from './icons';
-import { basename, formatCount, formatRelative } from '../utils/format';
-import { formatMbps, type NodeTelemetry } from '../utils/telemetry';
-import type { NodeStatus } from '../utils/status';
+import { basename, formatCount, formatRelative } from '@dayu-sec/wist-atlas-graph';
+import { formatMbps, type NodeTelemetry } from '@dayu-sec/wist-atlas-graph';
+import type { NodeStatus } from '@dayu-sec/wist-atlas-graph';
 import Sparkline from './Sparkline';
 import StatusDot from './StatusDot';
 

@@ -1,5 +1,5 @@
 import { useReducer } from 'react';
-import type { AppState, AppAction } from '../types/domain';
+import type { AppState, AppAction } from '@dayu-sec/wist-atlas-graph';
 
 const initialLayerVisibility = {
   resource: true,

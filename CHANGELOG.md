@@ -3,6 +3,19 @@
 本文件记录 `wist-atlas-web` 的所有重要变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### 变更
+
+- **图谱内核抽到共享包** [`@dayu-sec/wist-atlas-graph@0.1.0`](https://github.com/dayu-sec/wist-atlas-graph)：
+  领域类型、版式算法（聚焦 / 运行时 / 服务）、状态与健康口径、搜索索引、画布显示装配
+  （`buildDisplayGraph` 及前缀常量）全部改从包里引入；本仓删除对应副本（约 -1900 行）。
+  目的是让 `wist-field-web` 的「资产拓扑」页复用同一张画布，而不是 iframe 嵌入整个应用。
+- API 客户端改为 `createAtlasClient({ baseUrl, headers, fetchImpl })`；不传参时行为与 0.1.3 一致
+  （前缀跟随 `document.baseURI`，令牌读同源 `sessionStorage['wist.console.token']`）。
+- 依赖形态用 GitHub Release 的 tgz 直链（构建镜像里没有 git/ssh，`github:` 简写在
+  `node:24-alpine` 上拉不下来）。
+
 ## [0.1.2] - 2026-11-05
 
 ### 变更

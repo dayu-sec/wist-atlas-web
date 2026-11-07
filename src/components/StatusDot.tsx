@@ -1,5 +1,5 @@
-import type { NodeStatus, StatusTone } from '../utils/status';
-import { STATUS_LABELS } from '../utils/status';
+import type { NodeStatus, StatusTone } from '@dayu-sec/wist-atlas-graph';
+import { STATUS_LABELS } from '@dayu-sec/wist-atlas-graph';
 
 type Props = {
   tone: StatusTone;

@@ -1,5 +1,5 @@
-import type { LayerKind } from '../types/domain';
-import { LAYER_COLORS } from '../utils/colors';
+import type { LayerKind } from '@dayu-sec/wist-atlas-graph';
+import { LAYER_COLORS } from '@dayu-sec/wist-atlas-graph';
 import { SearchIcon } from './icons';
 
 type Props = {

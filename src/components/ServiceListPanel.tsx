@@ -1,5 +1,5 @@
-import type { ServiceSummaryDto } from '../types/domain';
-import { formatCount } from '../utils/format';
+import type { ServiceSummaryDto } from '@dayu-sec/wist-atlas-graph';
+import { formatCount } from '@dayu-sec/wist-atlas-graph';
 import { ChevronRight, KindGlyph } from './icons';
 
 type Props = {

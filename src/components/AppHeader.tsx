@@ -1,6 +1,6 @@
-import type { HostSummaryDto, HostTopologyHost } from '../types/domain';
-import type { HealthCounts, NodeStatus } from '../utils/status';
-import { formatRelative } from '../utils/format';
+import type { HostSummaryDto, HostTopologyHost } from '@dayu-sec/wist-atlas-graph';
+import type { HealthCounts, NodeStatus } from '@dayu-sec/wist-atlas-graph';
+import { formatRelative } from '@dayu-sec/wist-atlas-graph';
 import { BrandMark, ChevronRight, MoonIcon, RefreshIcon, SunIcon } from './icons';
 
 type Props = {

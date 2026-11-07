@@ -4,6 +4,7 @@
 
 - 后端仓：[`wist-atlas`](https://github.com/dayu-sec/wist-atlas)
 - 编排仓：[`wist-atlas-stack`](https://github.com/dayu-sec/wist-atlas-stack)
+- 图谱内核：[`wist-atlas-graph`](https://github.com/dayu-sec/wist-atlas-graph)
 
 ## 技术栈
 
@@ -11,6 +12,22 @@
 - Vite 8
 - Tailwind CSS 4
 - Cytoscape（拓扑画布）
+
+## 图谱内核（共享包）
+
+领域类型、版式算法（聚焦剖面 / 运行时网格 / 服务焦点图）、节点状态口径、画布显示装配
+（TopN / 溢出节点 / 单进程折叠）以及只读 API 客户端，都在
+[`@dayu-sec/wist-atlas-graph`](https://github.com/dayu-sec/wist-atlas-graph)；`wist-field-web`
+的「资产拓扑」页用的是同一份。本仓只保留画布组件、面板与页面外壳。
+
+依赖形态是 **GitHub Release 里的 tgz 直链**，不是 `github:` 简写：
+
+```json
+"@dayu-sec/wist-atlas-graph": "https://github.com/dayu-sec/wist-atlas-graph/releases/download/v0.1.0/dayu-sec-wist-atlas-graph-0.1.0.tgz"
+```
+
+镜像是 `node:24-alpine`，构建阶段没有 git / ssh 凭据，`github:` 简写会在 `npm ci` 阶段拉不下来；
+Release 的 tgz 里已经带好 `dist/`，HTTPS 直取即可。升级按时改 tag 号，并在两个仓同步。
 
 ## 开发
 
@@ -60,11 +77,9 @@ docker run --rm -p 8080:80 \
 
 ```text
 src/
-  api/         后端 API client
   components/  画布、面板、卡片
   hooks/       状态与主题
-  types/       前端 DTO（对应后端 api-contract.md）
-  utils/       纯展示逻辑
+  utils/       画布专属的 cytoscape 元素构建（graph-to-cy）
 public/
   fixtures/    零后端依赖的示例数据
 ```

@@ -1,5 +1,5 @@
 import type { ElementDefinition } from 'cytoscape';
-import type { HostProcessTopologyGraph, CyNodeData, CyEdgeData } from '../types/domain';
+import type { HostProcessTopologyGraph, CyNodeData, CyEdgeData } from '@dayu-sec/wist-atlas-graph';
 
 export function graphToCyElements(graph: HostProcessTopologyGraph): ElementDefinition[] {
   const nodes: ElementDefinition[] = graph.nodes.map((n) => ({

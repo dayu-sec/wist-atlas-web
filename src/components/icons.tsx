@@ -1,4 +1,4 @@
-import type { NodeKind } from '../types/domain';
+import type { NodeKind } from '@dayu-sec/wist-atlas-graph';
 
 type IconProps = { className?: string };
 

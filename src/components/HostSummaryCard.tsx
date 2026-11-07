@@ -1,7 +1,7 @@
-import type { HostTopologyHost } from '../types/domain';
-import { formatCount, formatRelative } from '../utils/format';
-import { formatMbps, type HostTelemetry } from '../utils/telemetry';
-import type { NodeStatus } from '../utils/status';
+import type { HostTopologyHost } from '@dayu-sec/wist-atlas-graph';
+import { formatCount, formatRelative } from '@dayu-sec/wist-atlas-graph';
+import { formatMbps, type HostTelemetry } from '@dayu-sec/wist-atlas-graph';
+import type { NodeStatus } from '@dayu-sec/wist-atlas-graph';
 import { HostGlyph } from './icons';
 import Sparkline from './Sparkline';
 import StatusDot from './StatusDot';

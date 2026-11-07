@@ -1,4 +1,4 @@
-import { formatClock, formatCount } from '../utils/format';
+import { formatClock, formatCount } from '@dayu-sec/wist-atlas-graph';
 
 type Props = {
   hostCount: number;

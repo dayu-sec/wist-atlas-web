@@ -2,19 +2,19 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import cytoscape, { type Core } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import coseBilkent from 'cytoscape-cose-bilkent';
-import type { HostProcessTopologyGraph, LayerKind, NodeKind } from '../types/domain';
+import type { HostProcessTopologyGraph, LayerKind, NodeKind } from '@dayu-sec/wist-atlas-graph';
 import type { Theme } from '../hooks/useTheme';
 import { graphToCyElements } from '../utils/graph-to-cy';
-import { buildSearchIndex } from '../utils/search';
+import { buildSearchIndex } from '@dayu-sec/wist-atlas-graph';
 import {
   computeFocusLayout,
   computeRuntimeLayout,
   computeServiceLayout,
   type LaneAnnotation,
-} from '../utils/focus-layout';
-import { nodeDims } from '../utils/presentation';
-import { resolveNodeStatus, type NodeStatus } from '../utils/status';
-import type { TelemetryMap } from '../utils/telemetry';
+} from '@dayu-sec/wist-atlas-graph';
+import { nodeDims } from '@dayu-sec/wist-atlas-graph';
+import { resolveNodeStatus, type NodeStatus } from '@dayu-sec/wist-atlas-graph';
+import type { TelemetryMap } from '@dayu-sec/wist-atlas-graph';
 import NodeCard, { type GraphNodeHint, type HostStats } from './NodeCard';
 import { FitIcon, MinusIcon, PlusIcon } from './icons';
 

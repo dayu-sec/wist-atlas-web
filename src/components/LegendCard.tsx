@@ -1,7 +1,7 @@
-import type { NodeKind } from '../types/domain';
-import { getNodeStyle } from '../utils/colors';
+import type { NodeKind } from '@dayu-sec/wist-atlas-graph';
+import { getNodeStyle } from '@dayu-sec/wist-atlas-graph';
 import { KindGlyph } from './icons';
-import { STATUS_LABELS, type StatusTone } from '../utils/status';
+import { STATUS_LABELS, type StatusTone } from '@dayu-sec/wist-atlas-graph';
 
 type Props = {
   /** 当前图里实际出现的对象类型。图例只解释看得见的东西。 */
