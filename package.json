@@ -13,7 +13,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@dayu-sec/wist-atlas-graph": "https://github.com/dayu-sec/wist-atlas-graph/releases/download/v0.4.0/dayu-sec-wist-atlas-graph-0.4.0.tgz",
+    "@dayu-sec/wist-atlas-graph": "https://github.com/dayu-sec/wist-atlas-graph/releases/download/v0.4.2/dayu-sec-wist-atlas-graph-0.4.2.tgz",
     "@tailwindcss/vite": "^4.2.4",
     "@types/cytoscape": "^3.21.9",
     "cytoscape": "^3.33.2",
