@@ -14,6 +14,8 @@ type Props = {
   groupCount: number;
   serviceCount: number;
   topGroups: TopGroupSummary[];
+  /** 被进程归属过滤藏掉的个数（非 0 时在标题旁标出来）。 */
+  hiddenTopGroups?: number;
   generatedAt?: string | null;
   loading: boolean;
   /** 点「服务」指标打开左栏的服务清单。 */
@@ -38,6 +40,7 @@ export default function HostSummaryCard({
   groupCount,
   serviceCount,
   topGroups,
+  hiddenTopGroups = 0,
   generatedAt,
   loading,
   onOpenServices,
@@ -157,7 +160,9 @@ export default function HostSummaryCard({
           <h3 className="text-[9.5px] font-medium uppercase tracking-[0.08em] text-ink-faint">
             高频进程
           </h3>
-          <span className="text-[9.5px] text-ink-faint">按进程数</span>
+          <span className="text-[9.5px] text-ink-faint">
+            {hiddenTopGroups > 0 ? `按进程数 · 已隐藏 ${hiddenTopGroups} 个` : '按进程数'}
+          </span>
         </div>
 
         {topGroups.length > 0 ? (
@@ -183,7 +188,11 @@ export default function HostSummaryCard({
           </ul>
         ) : (
           <p className="mt-2 text-[10.5px] text-ink-faint">
-            {loading ? '正在读取进程分组…' : '暂无进程分组数据'}
+            {loading
+              ? '正在读取进程分组…'
+              : hiddenTopGroups > 0
+                ? '当前过滤下没有进程分组'
+                : '暂无进程分组数据'}
           </p>
         )}
       </div>

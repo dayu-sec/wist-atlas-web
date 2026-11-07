@@ -117,6 +117,7 @@ export default function App() {
             groupCount={view.groupCount}
             serviceCount={view.serviceCount}
             topGroups={view.topGroups}
+            hiddenTopGroups={view.topGroupsHidden}
             generatedAt={view.hostTopology?.generatedAt ?? null}
             loading={view.loading}
             onOpenServices={toggleServiceList}
