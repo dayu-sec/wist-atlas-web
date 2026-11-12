@@ -5,6 +5,15 @@ import LegendCard from './components/LegendCard';
 import HostSummaryCard from './components/HostSummaryCard';
 import StatusBar from './components/StatusBar';
 import ServiceListPanel from './components/ServiceListPanel';
+import NetworkPanel from './components/NetworkPanel';
+import PublicIpPanel from './components/PublicIpPanel';
+import {
+  fetchElasticIps,
+  fetchNetworkDomains,
+  isIdle,
+  type ElasticIpItem,
+  type NetworkDomainItem,
+} from './api/assets';
 import { ChevronRight, TopologyCanvasView, useTopologyView } from '@dayu-sec/wist-atlas-graph/ui';
 import { createAtlasClient } from '@dayu-sec/wist-atlas-graph';
 import type { ServiceSummaryDto } from '@dayu-sec/wist-atlas-graph';
@@ -49,6 +58,19 @@ export default function App() {
   const [serviceListLoading, setServiceListLoading] = useState(false);
   const [serviceListError, setServiceListError] = useState<string | null>(null);
 
+  // —— 网络 / 公网 IP：和「服务清单」一样，展开时才拉一次 ——
+  const [networkOpen, setNetworkOpen] = useState(true);
+  const [networkCollapsed, setNetworkCollapsed] = useState(false);
+  const [domains, setDomains] = useState<NetworkDomainItem[] | null>(null);
+  const [domainsLoading, setDomainsLoading] = useState(false);
+  const [domainsError, setDomainsError] = useState<string | null>(null);
+
+  const [publicIpOpen, setPublicIpOpen] = useState(true);
+  const [publicIpCollapsed, setPublicIpCollapsed] = useState(false);
+  const [elasticIps, setElasticIps] = useState<ElasticIpItem[] | null>(null);
+  const [elasticIpsLoading, setElasticIpsLoading] = useState(false);
+  const [elasticIpsError, setElasticIpsError] = useState<string | null>(null);
+
   const toggleServiceList = () => {
     setServiceListOpen((current) => {
       const next = !current;
@@ -74,6 +96,41 @@ export default function App() {
       cancelled = true;
     };
   }, [client, serviceListOpen, services]);
+
+  useEffect(() => {
+    if (USE_FIXTURE || !networkOpen || domains) return;
+    let cancelled = false;
+    // 网络清单是懒加载的外部数据，进入 loading 是这次请求的同步起点。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDomainsLoading(true);
+    setDomainsError(null);
+    fetchNetworkDomains().then((res) => {
+      if (cancelled) return;
+      setDomainsLoading(false);
+      if (res.ok) setDomains(res.items);
+      else setDomainsError(res.message);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [networkOpen, domains]);
+
+  useEffect(() => {
+    if (USE_FIXTURE || !publicIpOpen || elasticIps) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setElasticIpsLoading(true);
+    setElasticIpsError(null);
+    fetchElasticIps().then((res) => {
+      if (cancelled) return;
+      setElasticIpsLoading(false);
+      if (res.ok) setElasticIps(res.items);
+      else setElasticIpsError(res.message);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [publicIpOpen, elasticIps]);
 
   const railHost =
     view.hostTopology?.host ??
@@ -125,6 +182,36 @@ export default function App() {
             status={view.hostStatus}
             telemetry={view.telemetry.host}
             demo={demoTelemetry}
+          />
+
+          <NetworkPanel
+            domains={domains}
+            loading={domainsLoading}
+            error={domainsError}
+            collapsed={networkCollapsed || !networkOpen}
+            onToggle={() => {
+              if (!networkOpen) {
+                setNetworkOpen(true);
+                setNetworkCollapsed(false);
+                return;
+              }
+              setNetworkCollapsed((current) => !current);
+            }}
+          />
+
+          <PublicIpPanel
+            ips={elasticIps}
+            loading={elasticIpsLoading}
+            error={elasticIpsError}
+            collapsed={publicIpCollapsed || !publicIpOpen}
+            onToggle={() => {
+              if (!publicIpOpen) {
+                setPublicIpOpen(true);
+                setPublicIpCollapsed(false);
+                return;
+              }
+              setPublicIpCollapsed((current) => !current);
+            }}
           />
 
           {serviceListOpen && (
@@ -263,6 +350,9 @@ export default function App() {
         groupCount={view.groupCount}
         nodeCount={view.graphNodes.length}
         edgeCount={view.graphEdgeCount}
+        vpcCount={domains?.length ?? 0}
+        publicIpCount={elasticIps?.length ?? 0}
+        idleIpCount={elasticIps?.filter(isIdle).length ?? 0}
         queryTime={view.displayGraph?.metadata?.queryTime ?? null}
         loading={view.loading}
         demo={demoTelemetry}

@@ -7,6 +7,10 @@ type Props = {
   groupCount: number;
   nodeCount: number;
   edgeCount: number;
+  /** 网络与公网 IP 的规模（列表还没加载时是 0）。 */
+  vpcCount: number;
+  publicIpCount: number;
+  idleIpCount: number;
   queryTime?: string | null;
   loading: boolean;
   demo: boolean;
@@ -20,6 +24,9 @@ export default function StatusBar({
   groupCount,
   nodeCount,
   edgeCount,
+  vpcCount,
+  publicIpCount,
+  idleIpCount,
   queryTime,
   loading,
   demo,
@@ -40,6 +47,13 @@ export default function StatusBar({
         {formatCount(hostCount)} 主机 · {formatCount(segmentCount)} 网段 ·{' '}
         {formatCount(processCount)} 进程 · {formatCount(groupCount)} 分组
       </span>
+
+      {vpcCount > 0 && (
+        <span className="tnum text-ink-faint">
+          {formatCount(vpcCount)} VPC · {formatCount(publicIpCount)} 公网 IP
+          {idleIpCount > 0 && <span className="text-warn-strong"> · {idleIpCount} 闲置</span>}
+        </span>
+      )}
 
       <span className="ml-auto tnum hidden sm:inline">
         图中 {formatCount(nodeCount)} 节点 / {formatCount(edgeCount)} 条关系
