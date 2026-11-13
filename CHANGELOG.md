@@ -3,10 +3,15 @@
 本文件记录 `wist-atlas-web` 的所有重要变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.1.4-alpha] - 2026-11-13
 
 ### 变更
 
+- 依赖升到 `@dayu-sec/wist-atlas-graph@0.7.0`：主机卡标出 **agentd**（绿=在报 / 黄=要人看 /
+  红=报不上来）、点共享网段收窄到该网段里的主机、详情改成长按 2 秒的悬浮卡、总览按画布
+  宽高比排版、下钻带可点的历史路径。同时把 0.5.0 / 0.5.1 的组件改动一并带进镜像。
+- nginx 开 gzip（`gzip_proxied any`）：反代过来的 `/api` JSON 不再裸传，资产拓扑这类
+  几百 KB 的响应省掉一大半。
 - **图谱内核抽到共享包** [`@dayu-sec/wist-atlas-graph@0.1.0`](https://github.com/dayu-sec/wist-atlas-graph)：
   领域类型、版式算法（聚焦 / 运行时 / 服务）、状态与健康口径、搜索索引、画布显示装配
   （`buildDisplayGraph` 及前缀常量）全部改从包里引入；本仓删除对应副本（约 -1900 行）。
@@ -23,9 +28,9 @@
 - 依赖形态用 GitHub Release 的 tgz 直链（构建镜像里没有 git/ssh，`github:` 简写在
   `node:24-alpine` 上拉不下来）。
 
-## [未发布]
 
-### 变更
+
+
 
 - 依赖升到 `@dayu-sec/wist-atlas-graph@0.5.0`：**多主机总览**改为网格版式，只保留主机与
   被多台主机共享的网段；主机内部的运行时/分组/服务/容器在总览里收起，双击主机或点详情面板的
